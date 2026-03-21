@@ -38,7 +38,7 @@ export default function Register() {
                         {/* Job Seeker Button */}
                         <button
                             onClick={() => setRole('job_seeker')}
-                            className={`group relative flex flex-col items-center gap-4 p-6 rounded-2xl transition-all duration-300 ${
+                            className={`group relative flex flex-col items-center gap-4 p-6 rounded-2xl transition-all duration-300 cursor-pointer ${
                                 role === 'job_seeker'
                                     ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-500 shadow-lg shadow-blue-500/20'
                                     : 'bg-gradient-to-br from-slate-50 to-slate-100 border-2 border-slate-200 hover:border-blue-300 hover:shadow-md'
@@ -73,7 +73,7 @@ export default function Register() {
                         {/* Employer Button */}
                         <button
                             onClick={() => setRole('employer')}
-                            className={`group relative flex flex-col items-center gap-4 p-6 rounded-2xl transition-all duration-300 ${
+                            className={`group relative flex flex-col items-center gap-4 p-6 rounded-2xl transition-all duration-300 cursor-pointer ${
                                 role === 'employer'
                                     ? 'bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-500 shadow-lg shadow-purple-500/20'
                                     : 'bg-gradient-to-br from-slate-50 to-slate-100 border-2 border-slate-200 hover:border-purple-300 hover:shadow-md'
