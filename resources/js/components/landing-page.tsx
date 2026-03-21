@@ -70,6 +70,7 @@ export default function LandingPage({canRegister}: { canRegister: boolean }) {
       >
         {sections.map((section, index) => (
           <Section
+           canRegister={canRegister}
             key={section.id}
             {...section}
             isActive={index === activeSection}

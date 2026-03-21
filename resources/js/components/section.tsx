@@ -47,31 +47,32 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
           transition={{ duration: 0.5, delay: 0.4 }}
           className="mt-8"
         >
-            {auth.user ? (
-                <Link
-                    href={dashboard()}
-                    className="inline-block rounded-sm border border-[#19140035] px-5 py-1.5 text-sm leading-normal text-[#1b1b18] hover:border-[#1915014a] dark:border-[#3E3E3A] dark:text-[#EDEDEC] dark:hover:border-[#62605b] bg-white text-black"
-                >
-                    Dashboard
-                </Link>
-            ) : (
-                <>
-                    <Link
-                        href={login()}
-                        className="inline-block rounded-sm border border-transparent px-5 py-1.5 text-sm leading-normal text-[#1b1b18] hover:border-[#19140035] dark:text-[#EDEDEC] dark:hover:border-[#3E3E3A] bg-white text-black"
-                    >
-                        Log in
-                    </Link>
-                    {canRegister && (
-                        <Link
-                            href={register()}
-                            className="inline-block rounded-sm border border-[#19140035] px-5 py-1.5 text-sm leading-normal text-[#1b1b18] hover:border-[#1915014a] dark:border-[#3E3E3A] dark:text-[#EDEDEC] dark:hover:border-[#62605b] bg-white text-black ml-4"
-                        >
-                            Register
-                        </Link>
-                    )}
-                </>
-            )}
+          {auth.user ? (
+              <Link
+                  href={dashboard()}
+                  className="inline-block rounded-sm border border-[#19140035] px-5 py-1.5 text-sm text-[#1b1b18] dark:text-[#EDEDEC]"
+              >
+                  Dashboard
+              </Link>
+          ) : (
+              <>
+                  <Link
+                      href={login()}
+                      className="inline-block rounded-sm border border-gray-500 px-5 py-1.5 text-sm text-gray-300 hover:border-gray-300"
+                  >
+                      Log in
+                  </Link>
+
+                  {canRegister && (
+                      <Link
+                          href={register()}
+                          className="inline-block rounded-sm bg-white text-black px-5 py-1.5 text-sm font-medium ml-4 hover:bg-gray-200"
+                      >
+                          Register
+                      </Link>
+                  )}
+              </>
+          )}
           {/* <Button
             variant="outline"
             size="lg"
