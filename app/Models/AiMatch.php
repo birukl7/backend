@@ -9,4 +9,5 @@ class AiMatch extends Model
 {
     /** @use HasFactory<\Database\Factories\AiMatchFactory> */
     use HasFactory;
+    
 }
