@@ -12,6 +12,7 @@ import SettingsLayout from '@/layouts/settings/layout';
 import { edit } from '@/routes/profile';
 import { send } from '@/routes/verification';
 import type { BreadcrumbItem } from '@/types';
+import { Badge } from '@/components/ui/badge';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -42,6 +43,10 @@ export default function Profile({
                         title="Profile information"
                         description="Update your name and email address"
                     />
+
+                    <div>
+                        Role: <Badge>{auth.roles.join(', ')}</Badge>
+                    </div>
 
                     <Form
                         {...ProfileController.update.form()}
