@@ -18,6 +18,20 @@ return new class extends Migration
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();
+
+            # Additional fields for job seeker profile
+            $table->string('headline')->nullable();
+            $table->text('bio')->nullable();
+            $table->string('profile_photo')->nullable();
+            $table->string('experience_years')->nullable();
+            $table->string('location')->nullable();
+
+            # Additional fields for employer profile
+            $table->string('company_name')->nullable();
+            $table->string('company_description')->nullable();
+            $table->string('company_website')->nullable();
+            $table->string('company_logo')->nullable();
+
             $table->timestamps();
         });
 
