@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 use App\Http\Controllers\InterviewController;
+use App\Http\Controllers\VacancyController;     
 
 Route::get('/interview/schedule', [InterviewController::class, 'create'])->name('interview.create');
 
@@ -17,5 +18,7 @@ Route::inertia('/', 'welcome', [
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
 });
+
+Route::resource('jobs', VacancyController::class)->middleware(['auth', 'verified']);
 
 require __DIR__.'/settings.php';
