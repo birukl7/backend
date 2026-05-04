@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-react';
+import {  Folder, LayoutGrid, Menu, Search } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Breadcrumbs } from '@/components/breadcrumbs';
@@ -39,13 +39,28 @@ type Props = {
     breadcrumbs?: BreadcrumbItem[];
 };
 
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-];
+type Role = 'admin' | 'user';
+
+const navConfig: Record<Role, NavItem[]> = {
+    admin: [
+        { title: 'jk', href: dashboard(), icon: LayoutGrid },
+        { title: 'Users', href: '/users', icon: Folder },
+    ],
+    user: [
+        // { title: 'Dashboard', href: dashboard() },
+        { title: 'Jobs', href: '/jobs'  },
+    ],
+};
+
+// const mainNavItems: NavItem[] = [
+//     {
+//         title: 'Dashboard',
+//         href: dashboard(),
+//         icon: LayoutGrid,
+//     },
+// ];
+
+
 
 const rightNavItems: NavItem[] = [
     // {
@@ -68,6 +83,10 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
     const { auth } = page.props;
     const getInitials = useInitials();
     const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
+    
+
+    const role: Role = (auth.roles?.[0] as Role) || 'user';
+const mainNavItems: NavItem[] = navConfig[role] ?? navConfig.user;
 
     return (
         <>
