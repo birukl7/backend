@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('cv_projects', function (Blueprint $table) {
@@ -17,13 +14,14 @@ return new class extends Migration
             $table->string('project_name');
             $table->text('description')->nullable();
             $table->string('url')->nullable();
+            $table->string('tech_stack')->nullable(); // comma-separated tags
+            $table->date('start_date')->nullable();
+            $table->date('end_date')->nullable();
+            $table->unsignedSmallInteger('sort_order')->default(0);
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('cv_projects');

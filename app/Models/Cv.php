@@ -2,41 +2,45 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Cv extends Model
 {
     protected $fillable = [
-        'user_id',
-        'title',
-        'is_default'
+        'user_id', 'title', 'is_default',
+        'full_name', 'email', 'phone', 'location', 'website', 'linkedin', 'github', 'summary',
+        'template', 'accent_color', 'section_order',
     ];
-    /** @use HasFactory<\Database\Factories\CvFactory> */
-    use HasFactory;
 
-    public function experiences()
-    {
-        return $this->hasMany(CvExperience::class);
-    }
+    protected $casts = [
+        'is_default' => 'boolean',
+        'section_order' => 'array',
+    ];
 
-    public function educations()
-    {
-        return $this->hasMany(CvEducation::class);
-    }
-
-    public function skills()
-    {
-        return $this->hasMany(CvSkill::class);
-    }
-
-    public function projects()
-    {
-        return $this->hasMany(CvProject::class);
-    }
-
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function experiences(): HasMany
+    {
+        return $this->hasMany(CvExperience::class)->orderBy('sort_order');
+    }
+
+    public function educations(): HasMany
+    {
+        return $this->hasMany(CvEducation::class)->orderBy('sort_order');
+    }
+
+    public function skills(): HasMany
+    {
+        return $this->hasMany(CvSkill::class)->orderBy('sort_order');
+    }
+
+    public function projects(): HasMany
+    {
+        return $this->hasMany(CvProject::class)->orderBy('sort_order');
     }
 }

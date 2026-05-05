@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('cv_experiences', function (Blueprint $table) {
@@ -16,15 +13,16 @@ return new class extends Migration
             $table->foreignIdFor(App\Models\Cv::class)->constrained()->onDelete('cascade');
             $table->string('job_title');
             $table->string('company_name');
+            $table->string('location')->nullable();
+            $table->text('description')->nullable();
             $table->date('start_date');
             $table->date('end_date')->nullable();
+            $table->boolean('is_current')->default(false);
+            $table->unsignedSmallInteger('sort_order')->default(0);
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('cv_experiences');
