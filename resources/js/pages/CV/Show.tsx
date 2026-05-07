@@ -1,8 +1,6 @@
 import AppLayout from "@/layouts/app-layout";
 import { Head, router, useForm } from "@inertiajs/react";
-import { useState, useRef, useCallback } from "react";
-
-
+import { useState, useRef, useEffect } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,7 +83,11 @@ function useDragOrder<T extends { id: number }>(
     const dragIdx = useRef<number | null>(null);
     const [list, setList] = useState<T[]>(items);
 
-    const sync = useCallback((fresh: T[]) => setList(fresh), []);
+    // KEY FIX: re-sync local list whenever Inertia refreshes the page props
+    // (triggered after every store/destroy with preserveScroll: true)
+    useEffect(() => {
+        setList(items);
+    }, [items]);
 
     function onDragStart(i: number) { dragIdx.current = i; }
     function onDragOver(e: React.DragEvent, i: number) {
@@ -102,7 +104,7 @@ function useDragOrder<T extends { id: number }>(
         onReorder(list.map((x) => x.id));
     }
 
-    return { list, sync, onDragStart, onDragOver, onDrop };
+    return { list, onDragStart, onDragOver, onDrop };
 }
 
 // ─── Section wrapper ─────────────────────────────────────────────────────────

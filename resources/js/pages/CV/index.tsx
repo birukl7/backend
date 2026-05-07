@@ -103,6 +103,7 @@ function NewCvModal({ onClose }: { onClose: () => void }) {
 export default function Index({ cvs }: Props) {
     const [showModal, setShowModal] = useState(false);
     const [menuOpen, setMenuOpen] = useState<number | null>(null);
+    const [hoveredId, setHoveredId] = useState<number | null>(null);
 
     function deleteCv(id: number) {
         if (confirm("Delete this CV? This cannot be undone.")) {
@@ -180,48 +181,63 @@ export default function Index({ cvs }: Props) {
                         </button>
 
                         {cvs.map((cv) => (
-                            <div key={cv.id} className="group relative">
+                            <div
+                                key={cv.id}
+                                className="relative"
+                                onMouseEnter={() => setHoveredId(cv.id)}
+                                onMouseLeave={() => { setHoveredId(null); setMenuOpen(null); }}
+                            >
                                 {/* Thumbnail card */}
-                                <Link
-                                    href={`/cv/${cv.id}`}
-                                    className="block aspect-[3/4] rounded-xl overflow-hidden border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200 bg-slate-50"
-                                >
-                                    <CvThumbnail cv={cv} />
-                                </Link>
-
-                                {/* 3-dot menu */}
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                        onClick={(e) => { e.preventDefault(); setMenuOpen(menuOpen === cv.id ? null : cv.id); }}
-                                        className="w-7 h-7 flex items-center justify-center bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-colors"
+                                <div className="relative aspect-[3/4]">
+                                    <Link
+                                        href={`/cv/${cv.id}`}
+                                        className="block w-full h-full rounded-xl overflow-hidden border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200 bg-slate-50"
                                     >
-                                        <svg className="w-3.5 h-3.5 text-slate-500" viewBox="0 0 16 16" fill="currentColor">
-                                            <path d="M8 9a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM1.5 9a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm13 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/>
-                                        </svg>
-                                    </button>
-                                    {menuOpen === cv.id && (
-                                        <div className="absolute right-0 top-8 bg-white border border-slate-200 rounded-xl shadow-xl w-40 py-1 z-10">
-                                            <Link
-                                                href={`/cv/${cv.id}`}
-                                                className="flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
-                                                onClick={() => setMenuOpen(null)}
-                                            >
-                                                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                                    <path strokeLinecap="round" d="M11.5 2.5l2 2-8 8-2.5.5.5-2.5 8-8z"/>
-                                                </svg>
-                                                Edit
-                                            </Link>
-                                            <button
-                                                onClick={() => deleteCv(cv.id)}
-                                                className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-red-500 hover:bg-red-50 transition-colors"
-                                            >
-                                                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                                    <path strokeLinecap="round" d="M2 4h12M5 4V2.5h6V4M6.5 7v5M9.5 7v5M3.5 4l.5 9.5h8L13 4"/>
-                                                </svg>
-                                                Delete
-                                            </button>
-                                        </div>
-                                    )}
+                                        <CvThumbnail cv={cv} />
+                                    </Link>
+
+                                    {/* 3-dot button — visible when hovered or menu is open */}
+                                    <div
+                                        className={`absolute top-2 right-2 transition-opacity duration-150 ${hoveredId === cv.id || menuOpen === cv.id ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                                    >
+                                        <button
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setMenuOpen(menuOpen === cv.id ? null : cv.id);
+                                            }}
+                                            className="w-7 h-7 flex items-center justify-center bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-colors"
+                                        >
+                                            <svg className="w-3.5 h-3.5 text-slate-500" viewBox="0 0 16 16" fill="currentColor">
+                                                <path d="M8 9a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM1.5 9a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm13 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/>
+                                            </svg>
+                                        </button>
+
+                                        {/* Dropdown — lives in same container as button, no gap */}
+                                        {menuOpen === cv.id && (
+                                            <div className="absolute right-0 top-9 bg-white border border-slate-200 rounded-xl shadow-xl w-40 py-1 z-20">
+                                                <Link
+                                                    href={`/cv/${cv.id}`}
+                                                    className="flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
+                                                    onClick={() => setMenuOpen(null)}
+                                                >
+                                                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                                        <path strokeLinecap="round" d="M11.5 2.5l2 2-8 8-2.5.5.5-2.5 8-8z"/>
+                                                    </svg>
+                                                    Edit
+                                                </Link>
+                                                <button
+                                                    onClick={() => deleteCv(cv.id)}
+                                                    className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-red-500 hover:bg-red-50 transition-colors"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                                        <path strokeLinecap="round" d="M2 4h12M5 4V2.5h6V4M6.5 7v5M9.5 7v5M3.5 4l.5 9.5h8L13 4"/>
+                                                    </svg>
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Below card: name + date */}
@@ -236,11 +252,6 @@ export default function Index({ cvs }: Props) {
                     </div>
                 )}
             </div>
-
-            {/* Click outside to close menu */}
-            {menuOpen !== null && (
-                <div className="fixed inset-0 z-0" onClick={() => setMenuOpen(null)} />
-            )}
 
             {showModal && <NewCvModal onClose={() => setShowModal(false)} />}
         </AppLayout>

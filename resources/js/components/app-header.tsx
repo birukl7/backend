@@ -32,7 +32,7 @@ import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useInitials } from '@/hooks/use-initials';
 import { cn, toUrl } from '@/lib/utils';
-import { dashboard } from '@/routes';
+// import { dashboard } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
 
 type Props = {
@@ -43,7 +43,7 @@ type Role = 'admin' | 'user';
 
 const navConfig: Record<Role, NavItem[]> = {
     admin: [
-        { title: 'jk', href: dashboard(), icon: LayoutGrid },
+        { title: 'jk', href: "/dashboard", icon: LayoutGrid },
         { title: 'Users', href: '/users', icon: Folder },
     ],
     user: [
@@ -155,7 +155,7 @@ const mainNavItems: NavItem[] = navConfig[role] ?? navConfig.user;
                     </div>
 
                     <Link
-                        href={dashboard()}
+                        href={"/dashboard"}
                         prefetch
                         className="flex items-center space-x-2"
                     >

@@ -4,7 +4,7 @@ import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import type { SectionProps } from "../types"
 import { Link, usePage } from "@inertiajs/react";
-import { dashboard, login, register } from "@/routes";
+import {  login, register } from "@/routes";
 // import { register } from "module";
 
 export default function Section({ id, title, subtitle, content, isActive, showButton, buttonText, canRegister }: SectionProps) {
@@ -49,7 +49,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
         >
           {auth.user ? (
               <Link
-                  href={dashboard()}
+                  href={"/dashboard"}
                   className="inline-block rounded-sm border border-[#19140035] px-5 py-1.5 text-sm text-[#1b1b18] dark:text-[#EDEDEC]"
               >
                   Dashboard
