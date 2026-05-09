@@ -39,10 +39,10 @@ type Props = {
     breadcrumbs?: BreadcrumbItem[];
 };
 
-type Role = 'admin' | 'user';
+type Role = 'employer' | 'user';
 
 const navConfig: Record<Role, NavItem[]> = {
-    admin: [
+    employer: [
         { title: 'jk', href: "/dashboard", icon: LayoutGrid },
         { title: 'Users', href: '/users', icon: Folder },
     ],
@@ -87,7 +87,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
     
 
     const role: Role = (auth.roles?.[0] as Role) || 'user';
-const mainNavItems: NavItem[] = navConfig[role] ?? navConfig.user;
+    const mainNavItems: NavItem[] = navConfig[role] ?? navConfig.user;
 
     return (
         <>
