@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import {  LayoutGrid } from 'lucide-react';
+import {  LayoutGrid, PoundSterling } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -23,9 +23,9 @@ const mainNavItems: NavItem[] = [
         icon: LayoutGrid,
     },
     {
-        title: 'Users',
-        href: '/users',
-        icon: LayoutGrid,
+        title: 'Posted Jobs',
+        href: '/employer/jobs',
+        icon: PoundSterling,
     }
 ];
 

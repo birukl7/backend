@@ -22,7 +22,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::redirect('dashboard', 'jobs');
 });
 
-Route::resource('jobs', VacancyController::class)->middleware(['auth', 'verified']);
+
+// ── Employer routes (role: employer) ─────────────────────────────────────────
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/employer/jobs',          [VacancyController::class, 'index'])->name('employer.jobs.index');
+    Route::post('/employer/jobs',         [VacancyController::class, 'store'])->name('employer.jobs.store');
+    Route::put('/employer/jobs/{vacancy}', [VacancyController::class, 'update'])->name('employer.jobs.update');
+    Route::delete('/employer/jobs/{vacancy}', [VacancyController::class, 'destroy'])->name('employer.jobs.destroy');
+});
+ 
+
+// ── Job seeker routes (role: job_seeker) ─────────────────────────────────────
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/jobs', [VacancyController::class, 'browse'])->name('jobs.index');
+});
 
 
 Route::middleware(['auth', 'verified'])->group(function () {
