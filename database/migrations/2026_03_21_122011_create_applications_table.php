@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('applications', function (Blueprint $table) {
@@ -16,14 +13,15 @@ return new class extends Migration
             $table->foreignIdFor(App\Models\Vacancy::class)->constrained()->onDelete('cascade');
             $table->foreignIdFor(App\Models\Cv::class)->constrained()->onDelete('cascade');
             $table->foreignIdFor(App\Models\User::class)->constrained()->onDelete('cascade');
-            $table->enum('status', ['applied', 'shortlisted', 'rejected', 'hired'])->default('pending');
+            $table->text('cover_letter')->nullable();
+            $table->enum('status', ['pending', 'applied', 'shortlisted', 'rejected', 'hired'])->default('pending');
             $table->timestamps();
+
+            // A user can only apply once per vacancy
+            $table->unique(['vacancy_id', 'user_id']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('applications');

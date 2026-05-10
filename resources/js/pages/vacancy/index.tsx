@@ -19,16 +19,29 @@ interface Vacancy {
     updated_at: string;
 }
 
-interface Props {
-    vacancies: Vacancy[];
+interface UserCv {
+    id: number;
+    title: string;
+    full_name: string | null;
+    is_default: boolean;
 }
 
-export default function Index({ vacancies }: Props) {
+interface Props {
+    vacancies: Vacancy[];
+    applied_ids: number[];   // ← was missing
+    user_cvs: UserCv[];  
+}
+
+export default function Index({ vacancies, applied_ids, user_cvs }: Props) {
     return (
         <AppLayout>
             <Head title="Jobs" />
             <div className="flex h-full flex-1 flex-col overflow-x-auto">
-                <JobListings vacancies={vacancies} />
+                <JobListings 
+                    vacancies={vacancies} 
+                    applied_ids={applied_ids} 
+                    user_cvs={user_cvs} 
+                />
             </div>
         </AppLayout>
     );

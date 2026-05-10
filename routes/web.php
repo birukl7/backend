@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ApplicationController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 use App\Http\Controllers\CvController;
@@ -34,7 +35,29 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 // ── Job seeker routes (role: job_seeker) ─────────────────────────────────────
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/jobs', [VacancyController::class, 'browse'])->name('jobs.index');
+ 
+    // Browse all open jobs — pass CVs so the apply dialog can pick one
+    Route::get('/jobs', function () {
+        return inertia('vacancy/index', [
+            'vacancies'        => \App\Models\Vacancy::where('status', 'open')->latest()->get(),
+            // IDs of vacancies this user already applied to (drives the "Applied" badge)
+            'applied_ids'      => \App\Models\Application::where('user_id', auth()->id())
+                                      ->pluck('vacancy_id'),
+            // User's CVs for the apply dialog dropdown
+            'user_cvs'         => \App\Models\Cv::where('user_id', auth()->id())
+                                      ->select('id', 'title', 'full_name', 'is_default')
+                                      ->get(),
+        ]);
+    })->name('jobs.index');
+ 
+    // Submit application
+    Route::post('/applications', [ApplicationController::class, 'store'])->name('applications.store');
+ 
+    // My applications list
+    Route::get('/my-applications', [ApplicationController::class, 'index'])->name('applications.index');
+ 
+    // Withdraw
+    Route::delete('/applications/{application}', [ApplicationController::class, 'destroy'])->name('applications.destroy');
 });
 
 

@@ -50,6 +50,7 @@ const navConfig: Record<Role, NavItem[]> = {
         // { title: 'Dashboard', href: dashboard() },
         { title: 'Jobs', href: '/jobs'  },
         { title: 'CVs', href: '/cv'  },
+        { title: 'My Applications', href: '/my-applications'  },
     ],
 };
 
