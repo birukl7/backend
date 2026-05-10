@@ -27,4 +27,14 @@ class Application extends Model
     {
         return $this->belongsTo(Cv::class);
     }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function interview()
+    {
+        return $this->hasOne(Interview::class);
+    }
 }

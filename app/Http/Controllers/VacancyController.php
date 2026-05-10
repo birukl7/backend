@@ -100,4 +100,16 @@ class VacancyController extends Controller
 
         return back()->with('success', 'Job deleted.');
     }
+
+    public function applications(Vacancy $vacancy)
+    {
+        abort_if($vacancy->user_id !== auth()->id(), 403);
+
+        $applications = $vacancy->applications()
+            ->with(['user:id,name,email', 'cv:id,title,full_name'])
+            ->latest()
+            ->get();
+
+        return response()->json($applications);
+    }
 }

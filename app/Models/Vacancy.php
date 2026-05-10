@@ -23,4 +23,8 @@ class Vacancy extends Model
         'work_type',
         'application_deadline',
     ];
+
+    public function applications(){
+        return $this->hasMany(Application::class);
+    }
 }

@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('interviews', function (Blueprint $table) {
@@ -17,15 +14,16 @@ return new class extends Migration
             $table->foreignId('job_seeker_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('employer_id')->constrained('users')->onDelete('cascade');
             $table->dateTime('scheduled_at');
-            $table->string('meeting_link')->nullable();
+            $table->dateTime('rescheduled_at')->nullable(); // tracks reschedule history
+            $table->string('room_id')->unique();            // Jitsi room slug
+            $table->string('meeting_link');                 // full https://meet.jit.si/... URL
+            $table->text('notes')->nullable();              // employer notes for candidate
+            $table->string('timezone')->default('UTC');
             $table->enum('status', ['scheduled', 'completed', 'cancelled'])->default('scheduled');
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('interviews');

@@ -51,6 +51,7 @@ const navConfig: Record<Role, NavItem[]> = {
         { title: 'Jobs', href: '/jobs'  },
         { title: 'CVs', href: '/cv'  },
         { title: 'My Applications', href: '/my-applications'  },
+        { title: 'My Interviews', href: '/my-interviews'  },
     ],
 };
 

@@ -7,11 +7,6 @@ use App\Http\Controllers\CvController;
 use App\Http\Controllers\InterviewController;
 use App\Http\Controllers\VacancyController;     
 
-Route::get('/interview/schedule', [InterviewController::class, 'create'])->name('interview.create');
-
-Route::post('/interview', [InterviewController::class, 'store'])->name('interview.store');
-
-Route::get('/interview/test', [InterviewController::class, 'test'])->name('interview.test');
 
 Route::inertia('/', 'welcome', [
     'canRegister' => Features::enabled(Features::registration()),
@@ -50,14 +45,32 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('jobs.index');
  
-    // Submit application
-    Route::post('/applications', [ApplicationController::class, 'store'])->name('applications.store');
- 
-    // My applications list
-    Route::get('/my-applications', [ApplicationController::class, 'index'])->name('applications.index');
- 
-    // Withdraw
+// ── Job seeker ────────────────────────────────────────────────────────────
+    Route::get('/my-applications',  [ApplicationController::class, 'index'])->name('applications.index');
+    Route::post('/applications',    [ApplicationController::class, 'store'])->name('applications.store');
     Route::delete('/applications/{application}', [ApplicationController::class, 'destroy'])->name('applications.destroy');
+ 
+    Route::get('/my-interviews',    [InterviewController::class, 'jobSeekerIndex'])->name('interviews.index');
+    Route::delete('/interviews/{interview}', [InterviewController::class, 'destroy'])->name('interviews.destroy');
+    Route::get('/interviews/{interview}/join', [InterviewController::class, 'join'])->name('interviews.join');
+ 
+    // ── Employer ──────────────────────────────────────────────────────────────
+    Route::prefix('employer')->name('employer.')->group(function () {
+ 
+        // Applications management
+        Route::get('/applications',  [ApplicationController::class, 'employerIndex'])->name('applications.index');
+        Route::patch('/applications/{application}/status', [ApplicationController::class, 'updateStatus'])->name('applications.status');
+ 
+        // Interview scheduling
+        Route::get('/interviews',    [InterviewController::class, 'employerIndex'])->name('interviews.index');
+        Route::post('/applications/{application}/interview', [InterviewController::class, 'store'])->name('interviews.store');
+        Route::patch('/interviews/{interview}/reschedule',   [InterviewController::class, 'reschedule'])->name('interviews.reschedule');
+        Route::patch('/interviews/{interview}/complete',     [InterviewController::class, 'complete'])->name('interviews.complete');
+        Route::delete('/interviews/{interview}',             [InterviewController::class, 'destroy'])->name('interviews.destroy');
+    });
+
+    Route::get('/employer/jobs/{vacancy}/applications', [VacancyController::class, 'applications'])
+    ->name('employer.jobs.applications');
 });
 
 
