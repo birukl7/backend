@@ -1,11 +1,12 @@
 <?php
 
 use App\Http\Controllers\ApplicationController;
+use App\Services\AiMatchingService;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 use App\Http\Controllers\CvController;
 use App\Http\Controllers\InterviewController;
-use App\Http\Controllers\VacancyController;     
+use App\Http\Controllers\VacancyController;
 
 
 Route::inertia('/', 'welcome', [
@@ -26,41 +27,53 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/employer/jobs/{vacancy}', [VacancyController::class, 'update'])->name('employer.jobs.update');
     Route::delete('/employer/jobs/{vacancy}', [VacancyController::class, 'destroy'])->name('employer.jobs.destroy');
 });
- 
+
 
 // ── Job seeker routes (role: job_seeker) ─────────────────────────────────────
 Route::middleware(['auth', 'verified'])->group(function () {
- 
+
     // Browse all open jobs — pass CVs so the apply dialog can pick one
-    Route::get('/jobs', function () {
+    Route::get('/jobs', function (AiMatchingService $aiService) {
+        $vacancies = \App\Models\Vacancy::where('status', 'open')->latest()->get();
+
+        // Build the simple vacancy array for the AI service
+        $vacancyData = $vacancies->map(fn($v) => [
+            'id'           => $v->id,
+            'title'        => $v->title,
+            'description'  => $v->description,
+            'requirements' => $v->requirements,
+        ])->toArray();
+
+        // Get AI match scores (gracefully returns [] if service is down)
+        $aiMatches = $aiService->matchForUser(auth()->id(), $vacancyData);
+
         return inertia('vacancy/index', [
-            'vacancies'        => \App\Models\Vacancy::where('status', 'open')->latest()->get(),
-            // IDs of vacancies this user already applied to (drives the "Applied" badge)
-            'applied_ids'      => \App\Models\Application::where('user_id', auth()->id())
-                                      ->pluck('vacancy_id'),
-            // User's CVs for the apply dialog dropdown
-            'user_cvs'         => \App\Models\Cv::where('user_id', auth()->id())
-                                      ->select('id', 'title', 'full_name', 'is_default')
-                                      ->get(),
+            'vacancies'   => $vacancies,
+            'applied_ids' => \App\Models\Application::where('user_id', auth()->id())
+                                 ->pluck('vacancy_id'),
+            'user_cvs'    => \App\Models\Cv::where('user_id', auth()->id())
+                                 ->select('id', 'title', 'full_name', 'is_default')
+                                 ->get(),
+            'ai_matches'  => $aiMatches,  // Record<vacancy_id, score>
         ]);
     })->name('jobs.index');
- 
+
 // ── Job seeker ────────────────────────────────────────────────────────────
     Route::get('/my-applications',  [ApplicationController::class, 'index'])->name('applications.index');
     Route::post('/applications',    [ApplicationController::class, 'store'])->name('applications.store');
     Route::delete('/applications/{application}', [ApplicationController::class, 'destroy'])->name('applications.destroy');
- 
+
     Route::get('/my-interviews',    [InterviewController::class, 'jobSeekerIndex'])->name('interviews.index');
     Route::delete('/interviews/{interview}', [InterviewController::class, 'destroy'])->name('interviews.destroy');
     Route::get('/interviews/{interview}/join', [InterviewController::class, 'join'])->name('interviews.join');
- 
+
     // ── Employer ──────────────────────────────────────────────────────────────
     Route::prefix('employer')->name('employer.')->group(function () {
- 
+
         // Applications management
         Route::get('/applications',  [ApplicationController::class, 'employerIndex'])->name('applications.index');
         Route::patch('/applications/{application}/status', [ApplicationController::class, 'updateStatus'])->name('applications.status');
- 
+
         // Interview scheduling
         Route::get('/interviews',    [InterviewController::class, 'employerIndex'])->name('interviews.index');
         Route::post('/applications/{application}/interview', [InterviewController::class, 'store'])->name('interviews.store');
@@ -81,27 +94,27 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/cv/{id}',         [CvController::class, 'show'])->name('cv.show');
     Route::put('/cv/{id}',         [CvController::class, 'update'])->name('cv.update');
     Route::delete('/cv/{id}',      [CvController::class, 'destroy'])->name('cv.destroy');
- 
+
     // Experiences
     Route::post('/cv/{cvId}/experiences',          [CvController::class, 'storeExperience'])->name('cv.experience.store');
     Route::put('/cv/{cvId}/experiences/{expId}',   [CvController::class, 'updateExperience'])->name('cv.experience.update');
     Route::delete('/cv/{cvId}/experiences/{expId}',[CvController::class, 'destroyExperience'])->name('cv.experience.destroy');
- 
+
     // Education
     Route::post('/cv/{cvId}/education',            [CvController::class, 'storeEducation'])->name('cv.education.store');
     Route::put('/cv/{cvId}/education/{eduId}',     [CvController::class, 'updateEducation'])->name('cv.education.update');
     Route::delete('/cv/{cvId}/education/{eduId}',  [CvController::class, 'destroyEducation'])->name('cv.education.destroy');
- 
+
     // Skills
     Route::post('/cv/{cvId}/skills',               [CvController::class, 'storeSkill'])->name('cv.skill.store');
     Route::put('/cv/{cvId}/skills/{skillId}',      [CvController::class, 'updateSkill'])->name('cv.skill.update');
     Route::delete('/cv/{cvId}/skills/{skillId}',   [CvController::class, 'destroySkill'])->name('cv.skill.destroy');
- 
+
     // Projects
     Route::post('/cv/{cvId}/projects',             [CvController::class, 'storeProject'])->name('cv.project.store');
     Route::put('/cv/{cvId}/projects/{projectId}',  [CvController::class, 'updateProject'])->name('cv.project.update');
     Route::delete('/cv/{cvId}/projects/{projectId}',[CvController::class, 'destroyProject'])->name('cv.project.destroy');
- 
+
     // Reorder
     Route::post('/cv/{cvId}/reorder',              [CvController::class, 'reorder'])->name('cv.reorder');
 });

@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'ai_matching' => [
+        'url' => env('AI_MATCHING_URL', 'http://localhost:8001'),
+    ],
+
 ];
