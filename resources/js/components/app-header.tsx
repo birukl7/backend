@@ -1,8 +1,9 @@
 import { Link, usePage } from '@inertiajs/react';
-import {  Folder, LayoutGrid, Menu, Search } from 'lucide-react';
+import { Folder, LayoutGrid, Menu, Search } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { NotificationBell } from '@/components/notification-bell';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,15 +44,15 @@ type Role = 'employer' | 'user';
 
 const navConfig: Record<Role, NavItem[]> = {
     employer: [
-        { title: 'jk', href: "/dashboard", icon: LayoutGrid },
+        { title: 'jk', href: '/dashboard', icon: LayoutGrid },
         { title: 'Users', href: '/users', icon: Folder },
     ],
     user: [
         // { title: 'Dashboard', href: dashboard() },
-        { title: 'Jobs', href: '/jobs'  },
-        { title: 'CVs', href: '/cv'  },
-        { title: 'My Applications', href: '/my-applications'  },
-        { title: 'My Interviews', href: '/my-interviews'  },
+        { title: 'Jobs', href: '/jobs' },
+        { title: 'CVs', href: '/cv' },
+        { title: 'My Applications', href: '/my-applications' },
+        { title: 'My Interviews', href: '/my-interviews' },
     ],
 };
 
@@ -62,8 +63,6 @@ const navConfig: Record<Role, NavItem[]> = {
 //         icon: LayoutGrid,
 //     },
 // ];
-
-
 
 const rightNavItems: NavItem[] = [
     // {
@@ -86,7 +85,6 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
     const { auth } = page.props;
     const getInitials = useInitials();
     const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
-    
 
     const role: Role = (auth.roles?.[0] as Role) || 'user';
     const mainNavItems: NavItem[] = navConfig[role] ?? navConfig.user;
@@ -157,7 +155,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                     </div>
 
                     <Link
-                        href={"/dashboard"}
+                        href={'/dashboard'}
                         prefetch
                         className="flex items-center space-x-2"
                     >
@@ -232,6 +230,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                 ))}
                             </div>
                         </div>
+                        <NotificationBell />
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button

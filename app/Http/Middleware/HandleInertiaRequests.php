@@ -43,6 +43,11 @@ class HandleInertiaRequests extends Middleware
                 'roles' => $request->user() ? $request->user()->getRoleNames() : [],
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'unread_notifications_count' => fn () => $request->user()
+                ? \App\Models\AppNotification::where('user_id', $request->user()->id)
+                    ->whereNull('read_at')
+                    ->count()
+                : 0,
         ];
     }
 }

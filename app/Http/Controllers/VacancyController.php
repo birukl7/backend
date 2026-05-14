@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiMatch;
+use App\Models\AppNotification;
+use App\Models\Application;
 use App\Models\Vacancy;
 use Illuminate\Http\Request;
 
@@ -111,5 +114,82 @@ class VacancyController extends Controller
             ->get();
 
         return response()->json($applications);
+    }
+
+    /**
+     * Return AI-matched users for a vacancy (employer only).
+     * Excludes users who have already applied.
+     */
+    public function aiSuggestions(Vacancy $vacancy)
+    {
+        abort_if($vacancy->user_id !== auth()->id(), 403);
+
+        // Get top 15 AI matches for this vacancy, best score first
+        $matches = AiMatch::where('vacancy_id', $vacancy->id)
+            ->with(['user:id,name,email'])
+            ->orderByDesc('match_score')
+            ->limit(15)
+            ->get();
+
+        // Collect user_ids who have already applied so we can exclude them
+        $appliedUserIds = Application::where('vacancy_id', $vacancy->id)
+            ->pluck('user_id')
+            ->all();
+
+        // Filter out already-applied users and map to a clean payload
+        $suggestions = $matches
+            ->filter(fn ($match) => ! in_array($match->user_id, $appliedUserIds))
+            ->values()
+            ->map(fn ($match) => [
+                'user_id'       => $match->user_id,
+                'user_name'     => optional($match->user)->name,
+                'user_email'    => optional($match->user)->email,
+                'match_score'   => $match->match_score,
+                'match_percent' => round($match->match_score * 100),
+            ]);
+
+        // Tell the frontend which users were already invited for this vacancy
+        $suggestedUserIds = $suggestions->pluck('user_id')->all();
+        $alreadyInvitedIds = AppNotification::where('type', 'job_invitation')
+            ->whereIn('user_id', $suggestedUserIds)
+            ->whereRaw("JSON_EXTRACT(data, '$.vacancy_id') = ?", [$vacancy->id])
+            ->pluck('user_id')
+            ->all();
+
+        return response()->json([
+            'suggestions'        => $suggestions,
+            'already_invited_ids' => $alreadyInvitedIds,
+        ]);
+    }
+
+    /**
+     * Send a job invitation notification to a matched user (employer only).
+     */
+    public function inviteUser(Request $request, Vacancy $vacancy, int $userId)
+    {
+        abort_if($vacancy->user_id !== auth()->id(), 403);
+
+        $request->validate([
+            'message' => 'nullable|string|max:500',
+        ]);
+
+        $target = \App\Models\User::findOrFail($userId);
+
+        $customMessage = $request->message
+            ?? "Check it out and apply if you're interested!";
+
+        AppNotification::create([
+            'user_id' => $target->id,
+            'type'    => 'job_invitation',
+            'title'   => "You've been recommended for a position",
+            'body'    => "An employer thinks you're a great match for \"{$vacancy->title}\". {$customMessage}",
+            'data'    => [
+                'vacancy_id'    => $vacancy->id,
+                'vacancy_title' => $vacancy->title,
+                'employer_id'   => auth()->id(),
+            ],
+        ]);
+
+        return response()->json(['ok' => true]);
     }
 }

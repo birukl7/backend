@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 
 class CreateNewUser implements CreatesNewUsers
 {
@@ -57,8 +58,13 @@ class CreateNewUser implements CreatesNewUsers
         ]);
 
         // ✅ Assign role (Spatie)
-        $user->assignRole($input['role']);
+        $role = Role::where('name', $input['role'])
+                    ->where('guard_name', 'web')
+                    ->firstOrFail();
 
+        $user->assignRole($role);
+        // $user->assignRole($input['role']);
+//
         return $user;
     }
 }

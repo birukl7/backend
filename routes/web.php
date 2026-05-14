@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NotificationController;
 use App\Services\AiMatchingService;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -15,8 +17,7 @@ Route::inertia('/', 'welcome', [
 
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    // Route::inertia('dashboard', 'dashboard')->name('dashboard');
-    Route::redirect('dashboard', 'jobs');
+    Route::get('dashboard', [DashboardController::class, 'employer'])->name('dashboard');
 });
 
 
@@ -119,5 +120,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/cv/{cvId}/reorder',              [CvController::class, 'reorder'])->name('cv.reorder');
 });
 
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/notifications',                          [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/api/notifications',                      [NotificationController::class, 'apiIndex'])->name('notifications.api');
+    Route::patch('/notifications/{notification}/read',    [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/read-all',                [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::delete('/notifications/{notification}',        [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
+    // AI suggestions + invite (employer only)
+    Route::get('/employer/jobs/{vacancy}/ai-suggestions', [VacancyController::class, 'aiSuggestions'])->name('employer.jobs.ai-suggestions');
+    Route::post('/employer/jobs/{vacancy}/invite/{userId}', [VacancyController::class, 'inviteUser'])->name('employer.jobs.invite');
+});
 
 require __DIR__.'/settings.php';
