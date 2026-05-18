@@ -39,11 +39,20 @@ interface AuthUser {
     profile_photo_url?: string;
 }
 
+interface SidebarStats {
+    applied: number;
+    interviews: number;
+    skills_earned: number;
+    cvs_count: number;
+}
+
 interface Props {
     vacancies: Vacancy[];
     applied_ids?: number[];
     user_cvs?: UserCv[];
     ai_matches?: Record<number, number>; // vacancy_id -> score (0.0 – 1.0)
+    sidebar_stats?: SidebarStats;
+    profile_completion?: number; // 0–100
 }
 
 // ─── Label maps ───────────────────────────────────────────────────────────────
@@ -813,13 +822,59 @@ function ApplyDialog({
 
 // ─── Profile Sidebar ─────────────────────────────────────────────────────────
 
-function ProfileSidebar({ user }: { user: AuthUser }) {
+function ProfileSidebar({
+    user,
+    stats,
+    profileCompletion,
+}: {
+    user: AuthUser;
+    stats?: SidebarStats;
+    profileCompletion: number;
+}) {
     const initials = user.name
         .split(' ')
         .map((n) => n[0])
         .join('')
         .slice(0, 2)
         .toUpperCase();
+
+    const statCards = [
+        {
+            label: 'Applied',
+            value: stats?.applied ?? 0,
+            color: 'text-blue-700',
+            bg: 'bg-blue-50',
+            href: '/my-applications',
+        },
+        {
+            label: 'Interviews',
+            value: stats?.interviews ?? 0,
+            color: 'text-violet-700',
+            bg: 'bg-violet-50',
+            href: '/my-interviews',
+        },
+        {
+            label: 'Skills',
+            value: stats?.skills_earned ?? 0,
+            color: 'text-emerald-700',
+            bg: 'bg-emerald-50',
+            href: '/quiz',
+        },
+        {
+            label: 'CVs',
+            value: stats?.cvs_count ?? 0,
+            color: 'text-amber-700',
+            bg: 'bg-amber-50',
+            href: '/cv',
+        },
+    ];
+
+    const completionColor =
+        profileCompletion >= 80
+            ? 'bg-emerald-500'
+            : profileCompletion >= 50
+              ? 'bg-blue-500'
+              : 'bg-amber-400';
 
     return (
         <aside className="w-60 shrink-0 space-y-3">
@@ -848,36 +903,48 @@ function ProfileSidebar({ user }: { user: AuthUser }) {
                     </p>
                     <div className="mt-3">
                         <div className="mb-1 flex items-center justify-between">
-                            <span className="cursor-pointer text-[11px] text-slate-500 underline underline-offset-2 transition-colors hover:text-slate-700">
-                                Complete your profile
-                            </span>
-                            <span className="text-[11px] font-bold text-blue-600">
-                                100%
+                            <a
+                                href="/cv/create"
+                                className="text-[11px] text-slate-500 underline underline-offset-2 transition-colors hover:text-slate-700"
+                            >
+                                {profileCompletion < 100
+                                    ? 'Complete your profile'
+                                    : 'Profile complete'}
+                            </a>
+                            <span
+                                className={`text-[11px] font-bold ${
+                                    profileCompletion >= 80
+                                        ? 'text-emerald-600'
+                                        : profileCompletion >= 50
+                                          ? 'text-blue-600'
+                                          : 'text-amber-600'
+                                }`}
+                            >
+                                {profileCompletion}%
                             </span>
                         </div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                            <div className="h-full w-full rounded-full bg-blue-500" />
+                            <div
+                                className={`h-full rounded-full transition-all duration-500 ${completionColor}`}
+                                style={{ width: `${profileCompletion}%` }}
+                            />
                         </div>
                     </div>
                 </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-3">
-                {[
-                    { label: 'Applied', value: '12' },
-                    { label: 'Saved', value: '5' },
-                    { label: 'Interviews', value: '2' },
-                    { label: 'Offers', value: '1' },
-                ].map((s) => (
-                    <div
+                {statCards.map((s) => (
+                    <a
                         key={s.label}
-                        className="rounded-xl bg-slate-50 py-2 text-center"
+                        href={s.href}
+                        className={`rounded-xl py-2 text-center transition-opacity hover:opacity-80 ${s.bg}`}
                     >
-                        <p className="text-lg font-bold text-slate-800">
+                        <p className={`text-lg font-bold ${s.color}`}>
                             {s.value}
                         </p>
-                        <p className="text-[10px] text-slate-400">{s.label}</p>
-                    </div>
+                        <p className="text-[10px] text-slate-500">{s.label}</p>
+                    </a>
                 ))}
             </div>
 
@@ -1396,6 +1463,8 @@ export default function JobListings({
     applied_ids = [],
     user_cvs = [],
     ai_matches = {},
+    sidebar_stats,
+    profile_completion = 0,
 }: Props) {
     const { auth } = usePage<{ auth: { user: AuthUser } }>().props;
     const user = auth.user;
@@ -1475,7 +1544,11 @@ export default function JobListings({
             `}</style>
 
             <div className="flex min-h-0 w-full gap-5 px-6 py-6">
-                <ProfileSidebar user={user} />
+                <ProfileSidebar
+                    user={user}
+                    stats={sidebar_stats}
+                    profileCompletion={profile_completion}
+                />
 
                 <div className="min-w-0 flex-1 space-y-4">
                     <div className="flex items-center justify-between">

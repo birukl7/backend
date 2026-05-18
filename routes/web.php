@@ -3,6 +3,7 @@
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\QuizController;
 use App\Services\AiMatchingService;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -55,6 +56,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
                                  ->select('id', 'title', 'full_name', 'is_default')
                                  ->get(),
             'ai_matches'  => $aiMatches,  // Record<vacancy_id, score>
+            'sidebar_stats' => [
+                'applied'       => \App\Models\Application::where('user_id', auth()->id())->count(),
+                'interviews'    => \App\Models\Interview::where('job_seeker_id', auth()->id())->count(),
+                'skills_earned' => \App\Models\AssessmentResult::where('user_id', auth()->id())
+                                       ->where('passed', true)
+                                       ->distinct('assessment_id')
+                                       ->count('assessment_id'),
+                'cvs_count'     => \App\Models\Cv::where('user_id', auth()->id())->count(),
+            ],
+            'profile_completion' => (function () {
+                $cv = \App\Models\Cv::where('user_id', auth()->id())
+                    ->where('is_default', true)
+                    ->with(['skills', 'experiences'])
+                    ->first()
+                    ?? \App\Models\Cv::where('user_id', auth()->id())
+                        ->with(['skills', 'experiences'])
+                        ->first();
+
+                $score = 20; // base for account existence
+                if ($cv) {
+                    $score += 30;
+                    if (!empty($cv->summary)) $score += 15;
+                    if ($cv->skills->count() > 0) $score += 20;
+                    if ($cv->experiences->count() > 0) $score += 15;
+                }
+                return $score;
+            })(),
         ]);
     })->name('jobs.index');
 
@@ -146,6 +174,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // AI suggestions + invite (employer only)
     Route::get('/employer/jobs/{vacancy}/ai-suggestions', [VacancyController::class, 'aiSuggestions'])->name('employer.jobs.ai-suggestions');
     Route::post('/employer/jobs/{vacancy}/invite/{userId}', [VacancyController::class, 'inviteUser'])->name('employer.jobs.invite');
+
+    // Quiz / Assessments
+    Route::get('/quiz',                        [QuizController::class, 'index'])->name('quiz.index');
+    Route::get('/quiz/{assessment}',            [QuizController::class, 'show'])->name('quiz.show');
+    Route::post('/quiz/{assessment}/submit',    [QuizController::class, 'submit'])->name('quiz.submit');
 });
 
 require __DIR__.'/settings.php';

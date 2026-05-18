@@ -31,11 +31,20 @@ interface UserCv {
     is_default: boolean;
 }
 
+interface SidebarStats {
+    applied: number;
+    interviews: number;
+    skills_earned: number;
+    cvs_count: number;
+}
+
 interface Props {
     vacancies: Vacancy[];
     applied_ids: number[];
     user_cvs: UserCv[];
-    ai_matches?: Record<number, number>; // vacancy_id -> score (0.0 – 1.0), absent when AI service is down
+    ai_matches?: Record<number, number>;
+    sidebar_stats?: SidebarStats;
+    profile_completion?: number;
 }
 
 export default function Index({
@@ -43,6 +52,8 @@ export default function Index({
     applied_ids,
     user_cvs,
     ai_matches = {},
+    sidebar_stats,
+    profile_completion = 0,
 }: Props) {
     return (
         <AppLayout>
@@ -53,6 +64,8 @@ export default function Index({
                     applied_ids={applied_ids}
                     user_cvs={user_cvs}
                     ai_matches={ai_matches}
+                    sidebar_stats={sidebar_stats}
+                    profile_completion={profile_completion}
                 />
             </div>
         </AppLayout>
