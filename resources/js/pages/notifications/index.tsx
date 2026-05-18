@@ -1,6 +1,8 @@
 import { Head, router } from '@inertiajs/react';
 import { Bell, Calendar, CheckCircle, Trash2 } from 'lucide-react';
 import AppLayout from '@/layouts/app-layout';
+import { VacancyPreviewModal } from '@/components/vacancy-preview-modal';
+import { useState } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,28 +83,29 @@ function NotificationIcon({ type }: { type: string }) {
 
 export default function NotificationsIndex({ notifications }: Props) {
     const breadcrumbs = [{ title: 'Notifications', href: '/notifications' }];
+    const [previewVacancyId, setPreviewVacancyId] = useState<number | null>(
+        null,
+    );
 
     function handleMarkAllRead() {
         router.post('/notifications/read-all', {}, { preserveScroll: true });
     }
 
-    function handleMarkRead(notification: AppNotification) {
-        if (notification.read_at) {
-            return;
+    function handleNotificationClick(notification: AppNotification) {
+        // Mark as read if not already
+        if (!notification.read_at) {
+            router.patch(
+                `/notifications/${notification.id}/read`,
+                {},
+                { preserveScroll: true },
+            );
         }
 
-        router.patch(
-            `/notifications/${notification.id}/read`,
-            {},
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    if (notification.data?.vacancy_id) {
-                        void router.visit('/jobs');
-                    }
-                },
-            },
-        );
+        // If it's a job notification, open the preview drawer instead of navigating away
+        const vid = notification.data?.vacancy_id;
+        if (vid) {
+            setPreviewVacancyId(Number(vid));
+        }
     }
 
     function handleDelete(id: number) {
@@ -160,11 +163,12 @@ export default function NotificationsIndex({ notifications }: Props) {
                     <div className="space-y-2">
                         {notifications.data.map((n) => {
                             const isUnread = n.read_at === null;
+                            const isJobNotification = !!n.data?.vacancy_id;
 
                             return (
                                 <div
                                     key={n.id}
-                                    onClick={() => handleMarkRead(n)}
+                                    onClick={() => handleNotificationClick(n)}
                                     className={`group flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition-all hover:shadow-sm ${
                                         isUnread
                                             ? 'border-l-4 border-blue-200 border-l-blue-400 bg-blue-50/50'
@@ -193,9 +197,27 @@ export default function NotificationsIndex({ notifications }: Props) {
                                         <p className="mt-1 text-[13px] leading-relaxed text-slate-500">
                                             {n.body}
                                         </p>
-                                        <p className="mt-2 text-[11px] text-slate-400">
-                                            {timeAgo(n.created_at)}
-                                        </p>
+                                        <div className="mt-2 flex items-center gap-2">
+                                            <p className="text-[11px] text-slate-400">
+                                                {timeAgo(n.created_at)}
+                                            </p>
+                                            {isJobNotification && (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-500">
+                                                    <svg
+                                                        className="h-3 w-3"
+                                                        viewBox="0 0 16 16"
+                                                        fill="currentColor"
+                                                    >
+                                                        <path
+                                                            fillRule="evenodd"
+                                                            d="M6.22 3.22a.75.75 0 011.06 0l3.75 3.75a.75.75 0 010 1.06l-3.75 3.75a.75.75 0 01-1.06-1.06L9.44 7.5 6.22 4.28a.75.75 0 010-1.06z"
+                                                            clipRule="evenodd"
+                                                        />
+                                                    </svg>
+                                                    View Job
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Delete button */}
@@ -248,6 +270,13 @@ export default function NotificationsIndex({ notifications }: Props) {
                     </div>
                 )}
             </div>
+            {/* Job preview drawer */}
+            {previewVacancyId !== null && (
+                <VacancyPreviewModal
+                    vacancyId={previewVacancyId}
+                    onClose={() => setPreviewVacancyId(null)}
+                />
+            )}
         </AppLayout>
     );
 }

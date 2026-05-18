@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Bell, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { VacancyPreviewModal } from '@/components/vacancy-preview-modal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,9 @@ export function NotificationBell() {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
+    const [previewVacancyId, setPreviewVacancyId] = useState<number | null>(
+        null,
+    );
     const [unreadCount, setUnreadCount] = useState<number>(
         typeof unread_notifications_count === 'number'
             ? unread_notifications_count
@@ -250,8 +254,14 @@ export function NotificationBell() {
                                                     : ''
                                             }`}
                                             onClick={() => {
-                                                if (isUnread) {
+                                                if (isUnread)
                                                     void markRead(n.id);
+                                                const vid = n.data?.vacancy_id;
+                                                if (vid) {
+                                                    setOpen(false);
+                                                    setPreviewVacancyId(
+                                                        Number(vid),
+                                                    );
                                                 }
                                             }}
                                         >
@@ -304,6 +314,14 @@ export function NotificationBell() {
                         </Link>
                     </div>
                 </div>
+            )}
+
+            {/* Job preview drawer — rendered outside dropdown so z-index stacking works correctly */}
+            {previewVacancyId !== null && (
+                <VacancyPreviewModal
+                    vacancyId={previewVacancyId}
+                    onClose={() => setPreviewVacancyId(null)}
+                />
             )}
         </div>
     );

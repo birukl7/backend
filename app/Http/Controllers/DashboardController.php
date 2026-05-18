@@ -4,13 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\Application;
 use App\Models\Vacancy;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
     public function employer()
     {
-        $userId = auth()->id();
+        // Redirect job seekers to /jobs using Spatie's role check
+        if (Auth::user()?->hasRole('job_seeker')) {
+            return redirect('/jobs');
+        }
+
+        $userId = Auth::id();
 
         // All employer's vacancies with application counts
         $vacancies = Vacancy::where('user_id', $userId)

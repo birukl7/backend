@@ -16,7 +16,6 @@ Route::inertia('/', 'welcome', [
 ])->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-
     Route::get('dashboard', [DashboardController::class, 'employer'])->name('dashboard');
 });
 
@@ -128,6 +127,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/notifications/{notification}/read',    [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/read-all',                [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::delete('/notifications/{notification}',        [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
+    // Vacancy preview — JSON endpoint for the notification drawer.
+    // Lives here (not api.php) so the web session resolves auth()->user() correctly.
+    Route::get('/api/vacancies/{vacancy}/preview', function (\App\Models\Vacancy $vacancy) {
+        $userId = auth()->id();
+        return response()->json([
+            'vacancy'     => $vacancy,
+            'has_applied' => \App\Models\Application::where('user_id', $userId)
+                                 ->where('vacancy_id', $vacancy->id)
+                                 ->exists(),
+            'user_cvs'    => \App\Models\Cv::where('user_id', $userId)
+                                 ->select('id', 'title', 'full_name', 'is_default')
+                                 ->get(),
+        ]);
+    })->name('api.vacancy.preview');
 
     // AI suggestions + invite (employer only)
     Route::get('/employer/jobs/{vacancy}/ai-suggestions', [VacancyController::class, 'aiSuggestions'])->name('employer.jobs.ai-suggestions');
