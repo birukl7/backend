@@ -968,29 +968,8 @@ function ProfileSidebar({
                         ),
                         label: 'Manage Profile',
                         sub: 'Update your info',
-                        href: '/profile',
+                        href: '/settings/profile',
                         color: 'text-blue-600 bg-blue-50',
-                    },
-                    {
-                        icon: (
-                            <svg
-                                className="h-4 w-4"
-                                viewBox="0 0 16 16"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M8 1.5l1.75 3.5 3.75.5-2.75 2.75.75 3.75L8 10l-3.5 2 .75-3.75L2.5 5.5l3.75-.5L8 1.5z"
-                                />
-                            </svg>
-                        ),
-                        label: 'Skill Score',
-                        sub: 'View your ratings',
-                        href: '/skills',
-                        color: 'text-amber-600 bg-amber-50',
                     },
                     {
                         icon: (
