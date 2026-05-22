@@ -10,6 +10,8 @@
 /resources/js/routes
 /resources/js/wayfinder
 /vendor
+/ai_service/venv
+/ai_service/__pycache__
 .DS_Store
 .env
 .env.backup

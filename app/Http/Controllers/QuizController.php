@@ -7,16 +7,35 @@ use App\Models\Assessment;
 use App\Models\AssessmentResult;
 use App\Models\Cv;
 use App\Models\CvSkill;
+use App\Services\AiQuizService;
 use Illuminate\Http\Request;
 
 class QuizController extends Controller
 {
-    // GET /quiz — list all active quizzes with user's best result
-    public function index()
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    private function formatResult(?AssessmentResult $r): ?array
+    {
+        if (!$r) return null;
+        return [
+            'score'           => $r->score,
+            'passed'          => $r->passed,
+            'level'           => $r->level,
+            'correct_answers' => $r->correct_answers,
+            'total_questions' => $r->total_questions,
+            'taken_at'        => $r->created_at->toISOString(),
+        ];
+    }
+
+    // ─── GET /quiz ────────────────────────────────────────────────────────────
+
+    public function index(AiQuizService $quizService)
     {
         $userId = auth()->id();
 
+        // Global quizzes (no user_id)
         $assessments = Assessment::where('is_active', true)
+            ->whereNull('user_id')
             ->withCount('questions')
             ->get()
             ->map(function ($a) use ($userId) {
@@ -35,21 +54,62 @@ class QuizController extends Controller
                     'time_limit_minutes' => $a->time_limit_minutes,
                     'pass_score'         => $a->pass_score,
                     'questions_count'    => $a->questions_count,
-                    'user_best_result'   => $best ? [
-                        'score'           => $best->score,
-                        'passed'          => $best->passed,
-                        'level'           => $best->level,
-                        'correct_answers' => $best->correct_answers,
-                        'total_questions' => $best->total_questions,
-                        'taken_at'        => $best->created_at->toISOString(),
-                    ] : null,
+                    'user_best_result'   => $this->formatResult($best),
                 ];
             });
 
-        return inertia('quiz/index', ['assessments' => $assessments]);
+        // AI-generated quiz for this user (if cached)
+        $aiQuiz = $quizService->getCached($userId);
+
+        $aiQuizData = null;
+        if ($aiQuiz) {
+            $best = AssessmentResult::where('assessment_id', $aiQuiz->id)
+                ->where('user_id', $userId)
+                ->orderByDesc('score')
+                ->first();
+
+            $aiQuizData = [
+                'id'                 => $aiQuiz->id,
+                'title'              => $aiQuiz->title,
+                'description'        => $aiQuiz->description,
+                'skill_name'         => $aiQuiz->skill_name,
+                'category'           => $aiQuiz->category,
+                'difficulty'         => $aiQuiz->difficulty,
+                'time_limit_minutes' => $aiQuiz->time_limit_minutes,
+                'pass_score'         => $aiQuiz->pass_score,
+                'questions_count'    => $aiQuiz->questions_count,
+                'user_best_result'   => $this->formatResult($best),
+            ];
+        }
+
+        // Does the user have skills in their CV?
+        $hasCvSkills = CvSkill::whereIn('cv_id', \App\Models\Cv::where('user_id', $userId)->pluck('id'))->exists();
+
+        return inertia('quiz/index', [
+            'assessments'    => $assessments,
+            'ai_quiz'        => $aiQuizData,
+            'has_cv_skills'  => $hasCvSkills,
+            'llm_configured' => $quizService->isConfigured(),
+        ]);
     }
 
-    // GET /quiz/{assessment} — show quiz details + questions (no correct-answer flags)
+    // ─── POST /quiz/generate ─────────────────────────────────────────────────
+
+    public function generate(AiQuizService $quizService)
+    {
+        $quiz = $quizService->generate(auth()->id());
+
+        if (!$quiz) {
+            return back()->withErrors([
+                'generate' => 'Could not generate quiz. Make sure your CV has skills listed, and that GROQ_API_KEY is set in .env.',
+            ]);
+        }
+
+        return back()->with('success', "Your personalized \"{$quiz->title}\" quiz is ready!");
+    }
+
+    // ─── GET /quiz/{assessment} ───────────────────────────────────────────────
+
     public function show(Assessment $assessment)
     {
         $userId = auth()->id();
@@ -72,7 +132,7 @@ class QuizController extends Controller
             ->first();
 
         return inertia('quiz/show', [
-            'assessment' => [
+            'assessment'      => [
                 'id'                 => $assessment->id,
                 'title'              => $assessment->title,
                 'description'        => $assessment->description,
@@ -94,7 +154,8 @@ class QuizController extends Controller
         ]);
     }
 
-    // POST /quiz/{assessment}/submit — score answers, save result, update CV skill
+    // ─── POST /quiz/{assessment}/submit ───────────────────────────────────────
+
     public function submit(Request $request, Assessment $assessment)
     {
         $request->validate([
@@ -104,7 +165,7 @@ class QuizController extends Controller
         ]);
 
         $userId    = auth()->id();
-        $answers   = $request->answers; // [question_id => option_id]
+        $answers   = $request->answers;
         $timeTaken = $request->time_taken_seconds;
 
         $questions      = $assessment->questions()->with('options')->get();
@@ -117,9 +178,7 @@ class QuizController extends Controller
             $userOptionId  = isset($answers[$question->id]) ? (int) $answers[$question->id] : null;
             $isCorrect     = $correctOption && $userOptionId === $correctOption->id;
 
-            if ($isCorrect) {
-                $correctAnswers++;
-            }
+            if ($isCorrect) $correctAnswers++;
 
             $answersDetail[] = [
                 'question_id'       => $question->id,
@@ -138,8 +197,7 @@ class QuizController extends Controller
 
         $score  = $totalQuestions > 0 ? round(($correctAnswers / $totalQuestions) * 100) : 0;
         $passed = $score >= $assessment->pass_score;
-
-        $level = match (true) {
+        $level  = match (true) {
             $score >= 85 => 'advanced',
             $score >= 60 => 'intermediate',
             default      => 'beginner',
@@ -156,7 +214,6 @@ class QuizController extends Controller
             'correct_answers'    => $correctAnswers,
         ]);
 
-        // If passed → add/upgrade the skill in the user's default CV, clear AI cache
         $skillAdded = false;
         if ($passed) {
             $cv = Cv::where('user_id', $userId)->where('is_default', true)->first()
@@ -169,17 +226,17 @@ class QuizController extends Controller
                     'advanced'     => 'expert',
                 ];
 
-                $existing = CvSkill::where('cv_id', $cv->id)
+                $existing = \App\Models\CvSkill::where('cv_id', $cv->id)
                     ->whereRaw('LOWER(skill_name) = ?', [strtolower($assessment->skill_name)])
                     ->first();
 
                 if (!$existing) {
-                    CvSkill::create([
+                    \App\Models\CvSkill::create([
                         'cv_id'             => $cv->id,
                         'skill_name'        => $assessment->skill_name,
                         'proficiency_level' => $proficiencyMap[$level] ?? 'intermediate',
                         'category'          => $assessment->category,
-                        'sort_order'        => (CvSkill::where('cv_id', $cv->id)->max('sort_order') ?? 0) + 1,
+                        'sort_order'        => (\App\Models\CvSkill::where('cv_id', $cv->id)->max('sort_order') ?? 0) + 1,
                     ]);
                     $skillAdded = true;
                 } elseif ($this->levelRank($level) > $this->levelRank($existing->proficiency_level)) {
@@ -187,7 +244,6 @@ class QuizController extends Controller
                     $skillAdded = true;
                 }
 
-                // Invalidate AI match cache so it re-runs with the new skill
                 AiMatch::where('user_id', $userId)->delete();
             }
         }

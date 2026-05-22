@@ -39,4 +39,13 @@ return [
         'url' => env('AI_MATCHING_URL', 'http://localhost:8001'),
     ],
 
+    'groq' => [
+        'key'   => env('GROQ_API_KEY'),
+        'model' => env('GROQ_MODEL', 'llama-3.1-8b-instant'),
+    ],
+
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+    ],
+
 ];

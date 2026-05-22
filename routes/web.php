@@ -177,6 +177,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Quiz / Assessments
     Route::get('/quiz',                        [QuizController::class, 'index'])->name('quiz.index');
+    Route::post('/quiz/generate',               [QuizController::class, 'generate'])->name('quiz.generate');
     Route::get('/quiz/{assessment}',            [QuizController::class, 'show'])->name('quiz.show');
     Route::post('/quiz/{assessment}/submit',    [QuizController::class, 'submit'])->name('quiz.submit');
 });

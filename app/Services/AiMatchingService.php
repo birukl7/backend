@@ -52,8 +52,8 @@ class AiMatchingService
         }
 
         // Quiz-verified skills — repeated 3× for higher vector weight in the embedding
-        $verifiedSkills = \App\Models\AssessmentResult::where('user_id', $cv->user_id)
-            ->where('passed', true)
+        $verifiedSkills = \App\Models\AssessmentResult::where('assessment_results.user_id', $cv->user_id)
+            ->where('assessment_results.passed', true)
             ->join('assessments', 'assessment_results.assessment_id', '=', 'assessments.id')
             ->select('assessments.skill_name', 'assessments.category', 'assessment_results.level', 'assessment_results.score')
             ->orderByDesc('assessment_results.score')

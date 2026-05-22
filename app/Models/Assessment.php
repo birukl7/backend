@@ -9,9 +9,9 @@ class Assessment extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'description', 'skill_name', 'category', 'difficulty', 'time_limit_minutes', 'pass_score', 'is_active'];
+    protected $fillable = ['user_id', 'title', 'description', 'skill_name', 'category', 'difficulty', 'time_limit_minutes', 'pass_score', 'is_active', 'is_ai_generated'];
 
-    protected $casts = ['is_active' => 'boolean'];
+    protected $casts = ['is_active' => 'boolean', 'is_ai_generated' => 'boolean'];
 
     public function questions()
     {
