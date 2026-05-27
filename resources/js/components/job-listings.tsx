@@ -1,5 +1,6 @@
-import { usePage, useForm, router } from '@inertiajs/react';
+import { Link, usePage, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
+import { DashboardWelcome } from '@/components/dashboard-welcome';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -935,7 +936,7 @@ function ProfileSidebar({
 
             <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-3">
                 {statCards.map((s) => (
-                    <a
+                    <Link
                         key={s.label}
                         href={s.href}
                         className={`rounded-xl py-2 text-center transition-opacity hover:opacity-80 ${s.bg}`}
@@ -944,7 +945,7 @@ function ProfileSidebar({
                             {s.value}
                         </p>
                         <p className="text-[10px] text-slate-500">{s.label}</p>
-                    </a>
+                    </Link>
                 ))}
             </div>
 
@@ -1014,7 +1015,7 @@ function ProfileSidebar({
                         color: 'text-violet-600 bg-violet-50',
                     },
                 ].map((item) => (
-                    <a
+                    <Link
                         key={item.label}
                         href={item.href}
                         className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50"
@@ -1043,7 +1044,7 @@ function ProfileSidebar({
                                 clipRule="evenodd"
                             />
                         </svg>
-                    </a>
+                    </Link>
                 ))}
             </div>
         </aside>
@@ -1530,15 +1531,23 @@ export default function JobListings({
                 />
 
                 <div className="min-w-0 flex-1 space-y-4">
+                    <DashboardWelcome
+                        meta={
+                            activeTab === 'recommended'
+                                ? `${aiRecommended.length} AI ${aiRecommended.length === 1 ? 'match' : 'matches'} based on your profile`
+                                : `${filtered.length} ${filtered.length === 1 ? 'position' : 'positions'} available on the job board`
+                        }
+                    />
+
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-2xl font-bold text-slate-900">
-                                Job Board
-                            </h1>
+                            <h2 className="text-lg font-semibold text-slate-900">
+                                Job board
+                            </h2>
                             <p className="mt-0.5 text-sm text-slate-400">
                                 {activeTab === 'recommended'
-                                    ? `${aiRecommended.length} AI ${aiRecommended.length === 1 ? 'recommendation' : 'recommendations'} for you`
-                                    : `${filtered.length} ${filtered.length === 1 ? 'position' : 'positions'} available`}
+                                    ? 'Sorted by AI match score'
+                                    : 'Search and filter open roles'}
                             </p>
                         </div>
                         {hasAiMatches && (
