@@ -1,6 +1,8 @@
 import AppLayout from "@/layouts/app-layout";
-import { Head, Link, useForm, router } from "@inertiajs/react";
-import { useState } from "react";
+import { Head, Link, router } from "@inertiajs/react";
+import { useState, useRef } from "react";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Cv {
     id: number;
@@ -33,77 +35,202 @@ function timeAgo(dateStr: string): string {
     return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-const TEMPLATE_COLORS: Record<string, string> = {
-    classic: "#2563eb",
-    modern: "#7c3aed",
-    minimal: "#0f766e",
-};
+// ─── Template definitions ─────────────────────────────────────────────────────
 
-function CvThumbnail({ cv }: { cv: Cv }) {
-    const accent = cv.accent_color || TEMPLATE_COLORS[cv.template] || "#2563eb";
+const TEMPLATES = [
+    {
+        key: "classic",
+        label: "Classic",
+        description: "Timeless single-column with accent header line",
+        accent: "#2563eb",
+    },
+    { 
+        key: "modern",
+        label: "Modern",
+        description: "Two-column sidebar for a contemporary feel",
+        accent: "#7c3aed",
+    },
+    {
+        key: "minimal",
+        label: "Minimal",
+        description: "Clean and spacious — let content breathe",
+        accent: "#0f766e",
+    },
+    {
+        key: "executive",
+        label: "Executive",
+        description: "Bold dark header for senior professionals",
+        accent: "#1e293b",
+    },
+    {
+        key: "creative",
+        label: "Creative",
+        description: "Gradient sidebar with photo upload",
+        accent: "#db2777",
+    },
+] as const;
+
+type TemplateKey = typeof TEMPLATES[number]["key"];
+
+// ─── Mini template thumbnails ─────────────────────────────────────────────────
+
+function ClassicThumb({ accent }: { accent: string }) {
     return (
-        <div className="w-full h-full bg-white rounded-lg overflow-hidden" style={{ fontFamily: "Georgia, serif" }}>
-            {/* Header strip */}
-            <div className="h-8 w-full" style={{ backgroundColor: accent }} />
-            {/* Content lines */}
-            <div className="p-3 space-y-1.5">
-                <div className="h-2.5 rounded w-3/4 bg-slate-200" />
-                <div className="h-1.5 rounded w-1/2 bg-slate-100" />
-                <div className="mt-3 h-1 rounded w-full bg-slate-100" />
-                <div className="h-1 rounded w-5/6 bg-slate-100" />
-                <div className="h-1 rounded w-full bg-slate-100" />
-                <div className="mt-2 h-1 rounded w-2/3 bg-slate-100" />
-                <div className="h-1 rounded w-full bg-slate-100" />
-                <div className="h-1 rounded w-4/5 bg-slate-100" />
-                <div className="mt-2 h-1 rounded w-3/5 bg-slate-100" />
-                <div className="h-1 rounded w-full bg-slate-100" />
+        <div className="w-full h-full bg-white p-2 flex flex-col gap-1.5">
+            <div className="h-[2px] w-full rounded" style={{ backgroundColor: accent }} />
+            <div className="h-3 w-3/4 rounded bg-slate-300" />
+            <div className="h-1.5 w-1/2 rounded bg-slate-200" />
+            <div className="mt-2 space-y-1">
+                <div className="h-1 w-1/3 rounded" style={{ backgroundColor: accent + "99" }} />
+                <div className="h-1 w-full rounded bg-slate-100" />
+                <div className="h-1 w-5/6 rounded bg-slate-100" />
+                <div className="h-1 w-full rounded bg-slate-100" />
+            </div>
+            <div className="space-y-1">
+                <div className="h-1 w-1/3 rounded" style={{ backgroundColor: accent + "99" }} />
+                <div className="h-1 w-full rounded bg-slate-100" />
+                <div className="h-1 w-4/6 rounded bg-slate-100" />
             </div>
         </div>
     );
 }
 
-function NewCvModal({ onClose }: { onClose: () => void }) {
-    const { data, setData, post, processing, errors } = useForm({ title: "" });
-
+function ModernThumb({ accent }: { accent: string }) {
     return (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-scale-in">
-                <h2 className="text-lg font-bold text-slate-900 mb-1">New CV</h2>
-                <p className="text-slate-400 text-sm mb-5">Give your CV a name to get started</p>
-                <input
-                    type="text"
-                    placeholder="e.g. Software Engineer Resume"
-                    value={data.title}
-                    onChange={(e) => setData("title", e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && post("/cv")}
-                    autoFocus
-                    className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all placeholder:text-slate-300"
-                />
-                {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
-                <div className="flex gap-3 mt-5">
-                    <button
-                        onClick={onClose}
-                        className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={() => post("/cv")}
-                        disabled={processing || !data.title.trim()}
-                        className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                    >
-                        {processing ? "Creating…" : "Create CV"}
-                    </button>
+        <div className="w-full h-full flex">
+            <div className="w-2/5 h-full p-1.5 flex flex-col gap-1.5" style={{ backgroundColor: accent }}>
+                <div className="w-8 h-8 rounded-full bg-white/30 mx-auto mt-1" />
+                <div className="h-1.5 w-3/4 rounded bg-white/40 mx-auto" />
+                <div className="h-px w-full rounded bg-white/20 my-0.5" />
+                <div className="h-1 w-5/6 rounded bg-white/30" />
+                <div className="h-1 w-4/6 rounded bg-white/30" />
+                <div className="h-1 w-5/6 rounded bg-white/30" />
+            </div>
+            <div className="flex-1 p-1.5 space-y-1.5">
+                <div className="h-2 w-full rounded bg-slate-200" />
+                <div className="h-1 w-full rounded bg-slate-100" />
+                <div className="h-1 w-5/6 rounded bg-slate-100" />
+                <div className="h-1 w-full rounded bg-slate-100" />
+                <div className="h-1 w-4/6 rounded bg-slate-100" />
+                <div className="h-1 w-full rounded bg-slate-100" />
+            </div>
+        </div>
+    );
+}
+
+function MinimalThumb({ accent }: { accent: string }) {
+    return (
+        <div className="w-full h-full bg-white p-3 flex flex-col gap-2.5">
+            <div>
+                <div className="h-3 w-2/3 rounded bg-slate-700" />
+                <div className="h-px w-full rounded bg-slate-200 mt-2" />
+                <div className="h-1 w-1/2 rounded bg-slate-200 mt-1" />
+            </div>
+            <div className="space-y-1">
+                <div className="h-1 w-1/4 rounded" style={{ backgroundColor: accent }} />
+                <div className="h-1 w-full rounded bg-slate-100" />
+                <div className="h-1 w-5/6 rounded bg-slate-100" />
+            </div>
+            <div className="space-y-1">
+                <div className="h-1 w-1/4 rounded" style={{ backgroundColor: accent }} />
+                <div className="h-1 w-full rounded bg-slate-100" />
+                <div className="h-1 w-3/4 rounded bg-slate-100" />
+            </div>
+        </div>
+    );
+}
+
+function ExecutiveThumb({ accent }: { accent: string }) {
+    return (
+        <div className="w-full h-full bg-white flex flex-col">
+            <div className="p-2.5" style={{ backgroundColor: accent }}>
+                <div className="h-3 w-3/4 rounded bg-white/70" />
+                <div className="h-1.5 w-1/2 rounded bg-white/40 mt-1.5" />
+                <div className="flex gap-1.5 mt-1.5">
+                    <div className="h-1 w-1/4 rounded bg-white/30" />
+                    <div className="h-1 w-1/4 rounded bg-white/30" />
                 </div>
             </div>
+            <div className="p-1.5 space-y-1.5 flex-1">
+                <div className="h-px w-full rounded bg-slate-300" />
+                <div className="h-1 w-full rounded bg-slate-100" />
+                <div className="h-1 w-5/6 rounded bg-slate-100" />
+                <div className="h-px w-full rounded bg-slate-200" />
+                <div className="h-1 w-full rounded bg-slate-100" />
+            </div>
         </div>
     );
 }
 
+function CreativeThumb({ accent }: { accent: string }) {
+    return (
+        <div className="w-full h-full flex">
+            <div
+                className="w-2/5 h-full p-1.5 flex flex-col items-center gap-1.5"
+                style={{ background: `linear-gradient(160deg, ${accent}, ${accent}bb)` }}
+            >
+                <div className="w-8 h-8 rounded-full bg-white/40 border-2 border-white/60 mt-1" />
+                <div className="h-1.5 w-3/4 rounded bg-white/50" />
+                <div className="h-px w-full rounded bg-white/20 my-0.5" />
+                <div className="h-1 w-5/6 rounded bg-white/30" />
+                <div className="h-1 w-4/6 rounded bg-white/30" />
+            </div>
+            <div className="flex-1 bg-white p-1.5 space-y-1.5">
+                <div className="h-2 w-4/5 rounded bg-slate-200" />
+                <div className="h-1 w-full rounded bg-slate-100" />
+                <div className="h-1 w-5/6 rounded bg-slate-100" />
+                <div className="h-1 w-full rounded bg-slate-100" />
+                <div className="h-1 w-3/4 rounded bg-slate-100" />
+            </div>
+        </div>
+    );
+}
+
+const THUMB_MAP: Record<TemplateKey, React.ComponentType<{ accent: string }>> = {
+    classic:   ClassicThumb,
+    modern:    ModernThumb,
+    minimal:   MinimalThumb,
+    executive: ExecutiveThumb,
+    creative:  CreativeThumb,
+};
+
+// ─── Existing CV thumbnail ────────────────────────────────────────────────────
+
+function CvThumbnail({ cv }: { cv: Cv }) {
+    const tpl = (cv.template || "classic") as TemplateKey;
+    const tmpl = TEMPLATES.find((t) => t.key === tpl) ?? TEMPLATES[0];
+    const accent = cv.accent_color || tmpl.accent;
+    const Thumb = THUMB_MAP[tpl] ?? ClassicThumb;
+    return (
+        <div className="w-full h-full rounded-lg overflow-hidden">
+            <Thumb accent={accent} />
+        </div>
+    );
+}
+
+// ─── Main Index Page ───────────────────────────────────────────────────────────
+
 export default function Index({ cvs }: Props) {
-    const [showModal, setShowModal] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey | null>(null);
+    const [cvName, setCvName] = useState("");
+    const [creating, setCreating] = useState(false);
     const [menuOpen, setMenuOpen] = useState<number | null>(null);
     const [hoveredId, setHoveredId] = useState<number | null>(null);
+    const nameInputRef = useRef<HTMLInputElement>(null);
+
+    function pickTemplate(key: TemplateKey) {
+        setSelectedTemplate(key);
+        setCvName("");
+        setTimeout(() => nameInputRef.current?.focus(), 60);
+    }
+
+    function createCv() {
+        if (!selectedTemplate || !cvName.trim() || creating) return;
+        setCreating(true);
+        router.post("/cv", { title: cvName.trim(), template: selectedTemplate }, {
+            onFinish: () => setCreating(false),
+        });
+    }
 
     function deleteCv(id: number) {
         if (confirm("Delete this CV? This cannot be undone.")) {
@@ -112,148 +239,189 @@ export default function Index({ cvs }: Props) {
         setMenuOpen(null);
     }
 
+    const selectedMeta = TEMPLATES.find((t) => t.key === selectedTemplate);
+
     return (
         <AppLayout>
             <Head title="My CVs" />
 
-            <style>{`
-                @keyframes scale-in {
-                    from { transform: scale(0.95); opacity: 0; }
-                    to { transform: scale(1); opacity: 1; }
-                }
-                .animate-scale-in { animation: scale-in 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
-            `}</style>
+            <div className="max-w-6xl mx-auto px-6 py-8 space-y-10">
 
-            <div className="max-w-6xl mx-auto px-6 py-8">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">My CVs</h1>
-                        <p className="text-slate-400 text-sm mt-0.5">{cvs.length} document{cvs.length !== 1 ? "s" : ""}</p>
+                {/* ── Create New CV section ─────────────────────────────── */}
+                <div>
+                    <div className="mb-4">
+                        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Create a new CV</h2>
+                        <p className="text-slate-400 text-sm mt-0.5">Choose a template to get started</p>
                     </div>
-                    <button
-                        onClick={() => setShowModal(true)}
-                        className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm"
-                    >
-                        <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/>
-                        </svg>
-                        New CV
-                    </button>
-                </div>
 
-                {/* Empty state */}
-                {cvs.length === 0 && (
-                    <div className="text-center py-24">
-                        <div className="w-20 h-20 mx-auto mb-4 bg-slate-100 rounded-2xl flex items-center justify-center">
-                            <svg className="w-10 h-10 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
-                            </svg>
-                        </div>
-                        <h3 className="text-slate-700 font-semibold text-lg">No CVs yet</h3>
-                        <p className="text-slate-400 text-sm mt-1 mb-6">Create your first CV to get started</p>
-                        <button
-                            onClick={() => setShowModal(true)}
-                            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
-                        >
-                            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-                                <path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/>
-                            </svg>
-                            Create your first CV
-                        </button>
-                    </div>
-                )}
-
-                {/* CV Grid */}
-                {cvs.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
-                        {/* New CV card */}
-                        <button
-                            onClick={() => setShowModal(true)}
-                            className="group aspect-[3/4] flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl transition-all hover:bg-blue-50/50 cursor-pointer"
-                        >
-                            <div className="w-10 h-10 rounded-full bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center transition-colors">
-                                <svg className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors" viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/>
-                                </svg>
-                            </div>
-                            <span className="text-[12px] text-slate-400 group-hover:text-blue-500 font-medium transition-colors">New CV</span>
-                        </button>
-
-                        {cvs.map((cv) => (
-                            <div
-                                key={cv.id}
-                                className="relative"
-                                onMouseEnter={() => setHoveredId(cv.id)}
-                                onMouseLeave={() => { setHoveredId(null); setMenuOpen(null); }}
-                            >
-                                {/* Thumbnail card */}
-                                <div className="relative aspect-[3/4]">
-                                    <Link
-                                        href={`/cv/${cv.id}`}
-                                        className="block w-full h-full rounded-xl overflow-hidden border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200 bg-slate-50"
-                                    >
-                                        <CvThumbnail cv={cv} />
-                                    </Link>
-
-                                    {/* 3-dot button — visible when hovered or menu is open */}
-                                    <div
-                                        className={`absolute top-2 right-2 transition-opacity duration-150 ${hoveredId === cv.id || menuOpen === cv.id ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                                    >
-                                        <button
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                setMenuOpen(menuOpen === cv.id ? null : cv.id);
-                                            }}
-                                            className="w-7 h-7 flex items-center justify-center bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-colors"
-                                        >
-                                            <svg className="w-3.5 h-3.5 text-slate-500" viewBox="0 0 16 16" fill="currentColor">
-                                                <path d="M8 9a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM1.5 9a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm13 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/>
-                                            </svg>
-                                        </button>
-
-                                        {/* Dropdown — lives in same container as button, no gap */}
-                                        {menuOpen === cv.id && (
-                                            <div className="absolute right-0 top-9 bg-white border border-slate-200 rounded-xl shadow-xl w-40 py-1 z-20">
-                                                <Link
-                                                    href={`/cv/${cv.id}`}
-                                                    className="flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
-                                                    onClick={() => setMenuOpen(null)}
-                                                >
-                                                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                                        <path strokeLinecap="round" d="M11.5 2.5l2 2-8 8-2.5.5.5-2.5 8-8z"/>
-                                                    </svg>
-                                                    Edit
-                                                </Link>
-                                                <button
-                                                    onClick={() => deleteCv(cv.id)}
-                                                    className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-red-500 hover:bg-red-50 transition-colors"
-                                                >
-                                                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                                        <path strokeLinecap="round" d="M2 4h12M5 4V2.5h6V4M6.5 7v5M9.5 7v5M3.5 4l.5 9.5h8L13 4"/>
-                                                    </svg>
-                                                    Delete
-                                                </button>
-                                            </div>
+                    {/* Template grid */}
+                    <div className="grid grid-cols-5 gap-4">
+                        {TEMPLATES.map((tmpl) => {
+                            const Thumb = THUMB_MAP[tmpl.key];
+                            const selected = selectedTemplate === tmpl.key;
+                            return (
+                                <button
+                                    key={tmpl.key}
+                                    onClick={() => pickTemplate(tmpl.key)}
+                                    className={`group flex flex-col gap-2 text-left rounded-2xl p-2 border-2 transition-all focus:outline-none ${
+                                        selected
+                                            ? "border-blue-500 shadow-lg shadow-blue-100 scale-[1.02]"
+                                            : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+                                    }`}
+                                >
+                                    <div className="aspect-[3/4] rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
+                                        <Thumb accent={tmpl.accent} />
+                                    </div>
+                                    <div className="px-0.5 pb-0.5">
+                                        <p className={`text-[13px] font-bold ${selected ? "text-blue-600" : "text-slate-700"}`}>
+                                            {tmpl.label}
+                                        </p>
+                                        <p className="text-[11px] text-slate-400 leading-snug mt-0.5">{tmpl.description}</p>
+                                        {tmpl.key === "creative" && (
+                                            <span className="inline-block mt-1 text-[10px] bg-pink-50 text-pink-500 font-semibold rounded-full px-2 py-0.5">
+                                                Supports photo
+                                            </span>
                                         )}
                                     </div>
-                                </div>
+                                </button>
+                            );
+                        })}
+                    </div>
 
-                                {/* Below card: name + date */}
-                                <div className="mt-2 px-0.5">
-                                    <Link href={`/cv/${cv.id}`} className="block">
-                                        <p className="text-[13px] font-medium text-slate-800 truncate hover:text-blue-600 transition-colors">{cv.title}</p>
-                                        <p className="text-[11px] text-slate-400 mt-0.5">{timeAgo(cv.updated_at)}</p>
-                                    </Link>
+                    {/* Name input — appears after picking a template */}
+                    {selectedTemplate && (
+                        <div className="mt-5 flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                            {/* Small template preview */}
+                            <div className="w-10 h-14 rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                                {(() => { const T = THUMB_MAP[selectedTemplate]; return <T accent={selectedMeta!.accent} />; })()}
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-[11px] text-slate-400 font-medium mb-1">
+                                    {selectedMeta?.label} template — give your CV a name
+                                </p>
+                                <div className="flex gap-2">
+                                    <input
+                                        ref={nameInputRef}
+                                        type="text"
+                                        placeholder="e.g. Software Engineer Resume"
+                                        value={cvName}
+                                        onChange={(e) => setCvName(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && createCv()}
+                                        className="flex-1 px-3 py-2 text-sm text-slate-800 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all placeholder:text-slate-300 bg-white"
+                                    />
+                                    <button
+                                        onClick={createCv}
+                                        disabled={creating || !cvName.trim()}
+                                        className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+                                    >
+                                        {creating ? "Creating…" : "Create CV →"}
+                                    </button>
                                 </div>
                             </div>
-                        ))}
+                            <button
+                                onClick={() => setSelectedTemplate(null)}
+                                className="shrink-0 w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-500 transition-colors"
+                            >
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" d="M4 4l8 8M12 4l-8 8" />
+                                </svg>
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* ── Existing CVs ──────────────────────────────────────── */}
+                {cvs.length > 0 && (
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-900 tracking-tight">My CVs</h2>
+                                <p className="text-slate-400 text-sm mt-0.5">
+                                    {cvs.length} document{cvs.length !== 1 ? "s" : ""}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+                            {cvs.map((cv) => (
+                                <div
+                                    key={cv.id}
+                                    className="relative"
+                                    onMouseEnter={() => setHoveredId(cv.id)}
+                                    onMouseLeave={() => { setHoveredId(null); setMenuOpen(null); }}
+                                >
+                                    <div className="relative aspect-[3/4]">
+                                        <Link
+                                            href={`/cv/${cv.id}`}
+                                            className="block w-full h-full rounded-xl overflow-hidden border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200 bg-slate-50"
+                                        >
+                                            <CvThumbnail cv={cv} />
+                                        </Link>
+
+                                        {/* Template badge */}
+                                        <div className="absolute bottom-2 left-2">
+                                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/20 text-white backdrop-blur-sm">
+                                                {cv.template || "classic"}
+                                            </span>
+                                        </div>
+
+                                        {/* 3-dot menu */}
+                                        <div
+                                            className={`absolute top-2 right-2 transition-opacity duration-150 ${hoveredId === cv.id || menuOpen === cv.id ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                                        >
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    setMenuOpen(menuOpen === cv.id ? null : cv.id);
+                                                }}
+                                                className="w-7 h-7 flex items-center justify-center bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-colors"
+                                            >
+                                                <svg className="w-3.5 h-3.5 text-slate-500" viewBox="0 0 16 16" fill="currentColor">
+                                                    <path d="M8 9a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM1.5 9a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm13 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
+                                                </svg>
+                                            </button>
+
+                                            {menuOpen === cv.id && (
+                                                <div className="absolute right-0 top-9 bg-white border border-slate-200 rounded-xl shadow-xl w-40 py-1 z-20">
+                                                    <Link
+                                                        href={`/cv/${cv.id}`}
+                                                        className="flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
+                                                        onClick={() => setMenuOpen(null)}
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                                            <path strokeLinecap="round" d="M11.5 2.5l2 2-8 8-2.5.5.5-2.5 8-8z" />
+                                                        </svg>
+                                                        Edit
+                                                    </Link>
+                                                    <button
+                                                        onClick={() => deleteCv(cv.id)}
+                                                        className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-red-500 hover:bg-red-50 transition-colors"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                                            <path strokeLinecap="round" d="M2 4h12M5 4V2.5h6V4M6.5 7v5M9.5 7v5M3.5 4l.5 9.5h8L13 4" />
+                                                        </svg>
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-2 px-0.5">
+                                        <Link href={`/cv/${cv.id}`} className="block">
+                                            <p className="text-[13px] font-medium text-slate-800 truncate hover:text-blue-600 transition-colors">
+                                                {cv.title}
+                                            </p>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">{timeAgo(cv.updated_at)}</p>
+                                        </Link>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
-
-            {showModal && <NewCvModal onClose={() => setShowModal(false)} />}
         </AppLayout>
     );
 }

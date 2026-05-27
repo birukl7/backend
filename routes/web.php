@@ -4,6 +4,7 @@ use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\QuizController;
+use App\Http\Controllers\ScreeningController;
 use App\Services\AiMatchingService;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -35,7 +36,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Browse all open jobs — pass CVs so the apply dialog can pick one
     Route::get('/jobs', function (AiMatchingService $aiService) {
-        $vacancies = \App\Models\Vacancy::where('status', 'open')->latest()->get();
+        $vacancies = \App\Models\Vacancy::where('status', 'open')
+            ->with('screening:id,vacancy_id,is_enabled')
+            ->latest()
+            ->get()
+            ->map(function ($v) {
+                $v->screening_required = (bool) optional($v->screening)->is_enabled;
+                unset($v->screening);
+                return $v;
+            });
 
         // Build the simple vacancy array for the AI service
         $vacancyData = $vacancies->map(fn($v) => [
@@ -112,12 +121,36 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/employer/jobs/{vacancy}/applications', [VacancyController::class, 'applications'])
     ->name('employer.jobs.applications');
+
+    // ── Smart screening (AI-assisted) ─────────────────────────────────────
+    // Employer-side: configure & tune screening
+    Route::get('/employer/jobs/{vacancy}/screening',
+        [VacancyController::class, 'showScreening'])->name('employer.jobs.screening.show');
+    Route::put('/employer/jobs/{vacancy}/screening',
+        [VacancyController::class, 'updateScreening'])->name('employer.jobs.screening.update');
+    Route::post('/employer/jobs/{vacancy}/screening/tune',
+        [VacancyController::class, 'tuneScreening'])->name('employer.jobs.screening.tune');
+
+    // Employer-side: view a candidate's screening report
+    Route::get('/employer/applications/{application}/screening',
+        [ScreeningController::class, 'showForEmployer'])->name('employer.applications.screening');
+
+    // Employer-side: AI-generated brief about the applicant's CV
+    Route::get('/employer/applications/{application}/cv-summary',
+        [ApplicationController::class, 'cvSummary'])->name('employer.applications.cv-summary');
+
+    // Candidate-side: AI screening chat
+    Route::post('/screening/{vacancy}/start',
+        [ScreeningController::class, 'start'])->name('screening.start');
+    Route::post('/screening/{response}/message',
+        [ScreeningController::class, 'message'])->name('screening.message');
+    Route::post('/screening/{response}/complete',
+        [ScreeningController::class, 'complete'])->name('screening.complete');
 });
 
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/cv',              [CvController::class, 'index'])->name('cv.index');
-    Route::get('/cv/create',       [CvController::class, 'create'])->name('cv.create');
     Route::post('/cv',             [CvController::class, 'store'])->name('cv.store');
     Route::get('/cv/{id}',         [CvController::class, 'show'])->name('cv.show');
     Route::put('/cv/{id}',         [CvController::class, 'update'])->name('cv.update');
@@ -145,6 +178,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Reorder
     Route::post('/cv/{cvId}/reorder',              [CvController::class, 'reorder'])->name('cv.reorder');
+
+    // Photo upload
+    Route::post('/cv/{id}/photo',                  [CvController::class, 'uploadPhoto'])->name('cv.photo');
+
+    // AI summary (seeker)
+    Route::post('/cv/{id}/ai-summary',             [CvController::class, 'aiSummary'])->name('cv.ai-summary');
+    Route::post('/cv/{id}/use-ai-summary',         [CvController::class, 'useAiSummary'])->name('cv.use-ai-summary');
 });
 
 

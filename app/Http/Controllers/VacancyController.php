@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\AiMatch;
 use App\Models\AppNotification;
 use App\Models\Application;
+use App\Models\JobScreening;
 use App\Models\Vacancy;
+use App\Services\AiScreeningService;
 use Illuminate\Http\Request;
 
 class VacancyController extends Controller
@@ -191,5 +193,87 @@ class VacancyController extends Controller
         ]);
 
         return response()->json(['ok' => true]);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    //  SCREENING SETUP (employer side)
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * GET /employer/jobs/{vacancy}/screening
+     * Return the current screening config (creates an empty one on the fly).
+     */
+    public function showScreening(Vacancy $vacancy)
+    {
+        abort_if($vacancy->user_id !== auth()->id(), 403);
+
+        $screening = $vacancy->screening()->firstOrCreate(
+            ['vacancy_id' => $vacancy->id],
+            [
+                'is_enabled'    => false,
+                'intro_message' => "Hi! I'm the AI screener for the \"{$vacancy->title}\" role. I'll ask a few quick questions — your answers help us match you to this position.",
+                'criteria'      => [],
+                'questions'     => [],
+                'passing_score' => 60,
+            ]
+        );
+
+        return response()->json(['screening' => $screening]);
+    }
+
+    /**
+     * PUT /employer/jobs/{vacancy}/screening
+     * Save the screening config.
+     */
+    public function updateScreening(Request $request, Vacancy $vacancy)
+    {
+        abort_if($vacancy->user_id !== auth()->id(), 403);
+
+        $data = $request->validate([
+            'is_enabled'        => 'required|boolean',
+            'intro_message'     => 'nullable|string|max:1000',
+            'criteria'          => 'nullable|array',
+            'criteria.*'        => 'string|max:200',
+            'questions'         => 'nullable|array',
+            'questions.*.id'    => 'required|string|max:40',
+            'questions.*.text'  => 'required|string|max:500',
+            'questions.*.type'  => 'required|in:open,yes_no,multi',
+            'questions.*.options'  => 'nullable|array',
+            'questions.*.options.*'=> 'string|max:200',
+            'questions.*.required' => 'required|boolean',
+            'questions.*.weight'   => 'required|integer|min:1|max:5',
+            'passing_score'        => 'required|integer|min:0|max:100',
+            'auto_reject_below'    => 'nullable|integer|min:0|max:100',
+        ]);
+
+        $screening = $vacancy->screening()->updateOrCreate(
+            ['vacancy_id' => $vacancy->id],
+            $data
+        );
+
+        return response()->json(['screening' => $screening]);
+    }
+
+    /**
+     * POST /employer/jobs/{vacancy}/screening/tune
+     * Chat with the AI to design the screening.
+     */
+    public function tuneScreening(Request $request, Vacancy $vacancy, AiScreeningService $ai)
+    {
+        abort_if($vacancy->user_id !== auth()->id(), 403);
+
+        $data = $request->validate([
+            'message' => 'required|string|max:2000',
+            'history' => 'nullable|array',
+            'history.*.role'    => 'required_with:history|in:user,assistant',
+            'history.*.content' => 'required_with:history|string',
+        ]);
+
+        $result = $ai->tuneScreening($vacancy, $data['message'], $data['history'] ?? []);
+
+        return response()->json([
+            'configured' => $ai->isConfigured(),
+            ...$result,
+        ]);
     }
 }

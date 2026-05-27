@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Application;
 use App\Models\Cv;
+use App\Models\ScreeningResponse;
 use App\Models\Vacancy;
+use App\Services\AiCvSummaryService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -41,14 +43,40 @@ class ApplicationController extends Controller
         $existing = Application::where('vacancy_id', $data['vacancy_id'])->where('user_id', $userId)->first();
         if ($existing) return back()->withErrors(['apply' => 'You have already applied.']);
  
-        Application::create([
+        $screening = $vacancy->screening;
+        if ($screening && $screening->is_enabled) {
+            $screeningResponse = ScreeningResponse::where('vacancy_id', $vacancy->id)
+                ->where('user_id', $userId)
+                ->where('status', 'completed')
+                ->latest()
+                ->first();
+
+            if (!$screeningResponse) {
+                return back()->withErrors(['screening' => 'Please complete the AI screening before applying.']);
+            }
+        }
+
+        $initialStatus = 'pending';
+        if (isset($screeningResponse, $screening)) {
+            if ($screening->auto_reject_below !== null && $screeningResponse->ai_score < $screening->auto_reject_below) {
+                $initialStatus = 'rejected';
+            } elseif ($screeningResponse->ai_score >= ($screening->passing_score ?? 60)) {
+                $initialStatus = 'shortlisted';
+            }
+        }
+
+        $application = Application::create([
             'vacancy_id'   => $data['vacancy_id'],
             'cv_id'        => $cv->id,
             'user_id'      => $userId,
             'cover_letter' => $data['cover_letter'] ?? null,
-            'status'       => 'pending',
+            'status'       => $initialStatus,
         ]);
- 
+
+        if (isset($screeningResponse)) {
+            $screeningResponse->update(['application_id' => $application->id]);
+        }
+
         return back()->with('success', 'Application submitted!');
     }
  
@@ -79,6 +107,7 @@ class ApplicationController extends Controller
                 'cv.skills',
                 'cv.projects',
                 'interview',
+                'screeningResponse',
             ])
             ->latest()
             ->get();
@@ -103,5 +132,33 @@ class ApplicationController extends Controller
         $application->update(['status' => $request->status]);
  
         return back()->with('success', 'Application status updated.');
+    }
+
+    /**
+     * GET /employer/applications/{application}/cv-summary
+     * Generate (and cache) an employer-facing AI brief about the applicant's CV.
+     */
+    public function cvSummary(Application $application, AiCvSummaryService $ai)
+    {
+        abort_if($application->vacancy->user_id !== auth()->id(), 403);
+
+        $application->loadMissing([
+            'cv.experiences', 'cv.educations', 'cv.skills', 'cv.projects',
+            'vacancy:id,title,description,requirements',
+        ]);
+
+        $jobContext = sprintf(
+            "Title: %s\nDescription: %s\nRequirements: %s",
+            $application->vacancy->title,
+            $application->vacancy->description,
+            $application->vacancy->requirements ?? '—'
+        );
+
+        $brief = $ai->generateForEmployer($application->cv, $jobContext);
+
+        return response()->json([
+            'configured' => $ai->isConfigured(),
+            'brief'      => $brief,
+        ]);
     }
 }

@@ -37,4 +37,9 @@ class Application extends Model
     {
         return $this->hasOne(Interview::class);
     }
+
+    public function screeningResponse()
+    {
+        return $this->hasOne(ScreeningResponse::class);
+    }
 }

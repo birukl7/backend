@@ -4,7 +4,6 @@ import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import type { SectionProps } from "../types"
 import { Link, usePage } from "@inertiajs/react";
-import {  login, register } from "@/routes";
 // import { register } from "module";
 
 export default function Section({ id, title, subtitle, content, isActive, showButton, buttonText, canRegister }: SectionProps) {
@@ -57,7 +56,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
           ) : (
               <>
                   <Link
-                      href={login()}
+                      href="/login"
                       className="inline-block rounded-sm border border-gray-500 px-5 py-1.5 text-sm text-gray-300 hover:border-gray-300"
                   >
                       Log in
@@ -65,7 +64,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
 
                   {canRegister && (
                       <Link
-                          href={register()}
+                          href="/register"
                           className="inline-block rounded-sm bg-white text-black px-5 py-1.5 text-sm font-medium ml-4 hover:bg-gray-200"
                       >
                           Register

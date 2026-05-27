@@ -2,11 +2,102 @@ import type { SVGAttributes } from 'react';
 
 export default function AppLogoIcon(props: SVGAttributes<SVGElement>) {
     return (
-        <svg {...props} viewBox="0 0 40 42" xmlns="http://www.w3.org/2000/svg">
+        <svg
+            {...props}
+            viewBox="0 0 512 512"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+        >
+            <defs>
+                <linearGradient
+                    id="bgGradient"
+                    x1="64"
+                    y1="64"
+                    x2="448"
+                    y2="448"
+                    gradientUnits="userSpaceOnUse"
+                >
+                    <stop stopColor="#4F46E5" />
+                    <stop offset="1" stopColor="#06B6D4" />
+                </linearGradient>
+                <linearGradient
+                    id="cardGradient"
+                    x1="120"
+                    y1="120"
+                    x2="392"
+                    y2="392"
+                    gradientUnits="userSpaceOnUse"
+                >
+                    <stop stopColor="#FFFFFF" stopOpacity="0.98" />
+                    <stop offset="1" stopColor="#E0F2FE" stopOpacity="0.95" />
+                </linearGradient>
+                <filter
+                    id="shadow"
+                    x="0"
+                    y="0"
+                    width="512"
+                    height="512"
+                    filterUnits="userSpaceOnUse"
+                >
+                    <feDropShadow
+                        dx="0"
+                        dy="12"
+                        stdDeviation="18"
+                        floodOpacity="0.18"
+                    />
+                </filter>
+            </defs>
+            <rect
+                x="40"
+                y="40"
+                width="432"
+                height="432"
+                rx="96"
+                fill="url(#bgGradient)"
+            />
+            <g filter="url(#shadow)">
+                <rect
+                    x="112"
+                    y="112"
+                    width="288"
+                    height="288"
+                    rx="48"
+                    fill="url(#cardGradient)"
+                />
+            </g>
+            <rect
+                x="168"
+                y="210"
+                width="176"
+                height="116"
+                rx="24"
+                fill="#4F46E5"
+            />
             <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M17.2 5.63325L8.6 0.855469L0 5.63325V32.1434L16.2 41.1434L32.4 32.1434V23.699L40 19.4767V9.85547L31.4 5.07769L22.8 9.85547V18.2999L17.2 21.411V5.63325ZM38 18.2999L32.4 21.411V15.2545L38 12.1434V18.2999ZM36.9409 10.4439L31.4 13.5221L25.8591 10.4439L31.4 7.36561L36.9409 10.4439ZM24.8 18.2999V12.1434L30.4 15.2545V21.411L24.8 18.2999ZM23.8 20.0323L29.3409 23.1105L16.2 30.411L10.6591 27.3328L23.8 20.0323ZM7.6 27.9212L15.2 32.1434V38.2999L2 30.9666V7.92116L7.6 11.0323V27.9212ZM8.6 9.29991L3.05913 6.22165L8.6 3.14339L14.1409 6.22165L8.6 9.29991ZM30.4 24.8101L17.2 32.1434V38.2999L30.4 30.9666V24.8101ZM9.6 11.0323L15.2 7.92117V22.5221L9.6 25.6333V11.0323Z"
+                d="M208 210V186C208 169.431 221.431 156 238 156H274C290.569 156 304 169.431 304 186V210"
+                stroke="#4F46E5"
+                strokeWidth="18"
+                strokeLinecap="round"
+            />
+            <circle cx="332" cy="332" r="44" fill="#06B6D4" />
+            <path
+                d="M312 332L326 346L354 318"
+                stroke="white"
+                strokeWidth="12"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+            <path
+                d="M184 262H328"
+                stroke="#A5B4FC"
+                strokeWidth="10"
+                strokeLinecap="round"
+            />
+            <path
+                d="M184 294H280"
+                stroke="#C4B5FD"
+                strokeWidth="10"
+                strokeLinecap="round"
             />
         </svg>
     );

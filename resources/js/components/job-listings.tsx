@@ -1,5 +1,6 @@
-import { usePage, useForm, router } from '@inertiajs/react';
+import { usePage, useForm, router, Link } from '@inertiajs/react';
 import { useState } from 'react';
+import ScreeningChat from '@/components/screening-chat';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ interface Vacancy {
     application_deadline: string | null;
     created_at: string;
     updated_at: string;
+    screening_required?: boolean;
 }
 
 interface UserCv {
@@ -903,14 +905,14 @@ function ProfileSidebar({
                     </p>
                     <div className="mt-3">
                         <div className="mb-1 flex items-center justify-between">
-                            <a
+                            <Link
                                 href="/cv/create"
                                 className="text-[11px] text-slate-500 underline underline-offset-2 transition-colors hover:text-slate-700"
                             >
                                 {profileCompletion < 100
                                     ? 'Complete your profile'
                                     : 'Profile complete'}
-                            </a>
+                            </Link>
                             <span
                                 className={`text-[11px] font-bold ${
                                     profileCompletion >= 80
@@ -1454,6 +1456,7 @@ export default function JobListings({
     const [showOpenOnly, setShowOpenOnly] = useState(false);
     const [selected, setSelected] = useState<Vacancy | null>(null);
     const [applying, setApplying] = useState<Vacancy | null>(null);
+    const [screening, setScreening] = useState<Vacancy | null>(null);
     const [activeTab, setActiveTab] = useState<'all' | 'recommended'>('all');
 
     // Track applied IDs locally so the UI updates after submission without a full page reload
@@ -1505,7 +1508,17 @@ export default function JobListings({
 
     function openApply(vacancy: Vacancy) {
         setSelected(null); // close drawer
-        setApplying(vacancy);
+        if (vacancy.screening_required) {
+            setScreening(vacancy);
+        } else {
+            setApplying(vacancy);
+        }
+    }
+
+    function onScreeningComplete() {
+        const v = screening;
+        setScreening(null);
+        if (v) setApplying(v);
     }
 
     function onApplySuccess() {
@@ -1758,6 +1771,16 @@ export default function JobListings({
                     hasApplied={localAppliedIds.includes(selected.id)}
                     onClose={() => setSelected(null)}
                     onApply={() => openApply(selected)}
+                />
+            )}
+
+            {/* Screening chat (gates apply if vacancy.screening_required) */}
+            {screening && (
+                <ScreeningChat
+                    vacancyId={screening.id}
+                    vacancyTitle={screening.title}
+                    onClose={() => setScreening(null)}
+                    onComplete={onScreeningComplete}
                 />
             )}
 
