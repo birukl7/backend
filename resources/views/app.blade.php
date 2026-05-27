@@ -30,11 +30,18 @@
             }
         </style>
 
-        <title inertia>{{ config('app.name', 'Job Matching') }}</title>
+        <title inertia>{{ config('app.name', 'SkillChain') }}</title>
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        @php
+            $faviconPath = public_path('favicon.png');
+            $faviconVersion = is_file($faviconPath) ? filemtime($faviconPath) : time();
+            $appleTouchPath = public_path('apple-touch-icon.png');
+            $appleTouchVersion = is_file($appleTouchPath) ? filemtime($appleTouchPath) : $faviconVersion;
+        @endphp
+        <link rel="icon" href="{{ asset('favicon.png') }}?v={{ $faviconVersion }}" type="image/png" sizes="any">
+        <link rel="shortcut icon" href="{{ asset('favicon.png') }}?v={{ $faviconVersion }}" type="image/png">
+        <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}?v={{ $appleTouchVersion }}">
+        <meta name="app-logo" content="{{ asset('favicon.png') }}?v={{ $faviconVersion }}">
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />

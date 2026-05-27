@@ -1,7 +1,5 @@
-import { Link } from '@inertiajs/react';
-import {  AppleIcon, LayoutGrid, PoundSterling, Workflow } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
 import AppLogo from '@/components/app-logo';
-import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import {
@@ -13,48 +11,25 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-// import { dashboard } from '@/routes';
-import type { NavItem } from '@/types';
-
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: "/dashboard",
-        icon: LayoutGrid,
-    },
-    {
-        title: 'Posted Jobs',
-        href: '/employer/jobs',
-        icon: PoundSterling,
-    },
-    {
-        title: 'Applications',
-        href: '/employer/applications',
-        icon: Workflow,
-    }
-];
-
-const footerNavItems: NavItem[] = [
-    // {
-    //     title: 'Repository',
-    //     href: 'https://github.com/laravel/react-starter-kit',
-    //     icon: FolderGit2,
-    // },
-    // {
-    //     title: 'Documentation',
-    //     href: 'https://laravel.com/docs/starter-kits#react',
-    //     icon: BookOpen,
-    // },
-];
+import {
+    getNavItemsForRole,
+    resolveAppRole,
+} from '@/config/navigation';
+import type { Auth } from '@/types';
 
 export function AppSidebar() {
+    const { auth } = usePage<{ auth: Auth }>().props;
+    const role = resolveAppRole(auth.roles);
+    const mainNavItems = getNavItemsForRole(role);
+    const homeHref = role === 'employer' ? '/dashboard' : '/jobs';
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={"/dashboard"} prefetch>
+                            <Link href={homeHref} prefetch>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
@@ -67,7 +42,6 @@ export function AppSidebar() {
             </SidebarContent>
 
             <SidebarFooter>
-                <NavFooter items={footerNavItems} className="mt-auto" />
                 <NavUser />
             </SidebarFooter>
         </Sidebar>
