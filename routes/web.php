@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\QuizController;
@@ -16,6 +18,11 @@ use App\Http\Controllers\VacancyController;
 Route::inertia('/', 'welcome', [
     'canRegister' => Features::enabled(Features::registration()),
 ])->name('home');
+
+Route::middleware('guest')->group(function () {
+    Route::get('auth/google', [GoogleAuthController::class, 'redirect'])->name('auth.google');
+    Route::get('auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'employer'])->name('dashboard');
@@ -220,6 +227,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/quiz/generate',               [QuizController::class, 'generate'])->name('quiz.generate');
     Route::get('/quiz/{assessment}',            [QuizController::class, 'show'])->name('quiz.show');
     Route::post('/quiz/{assessment}/submit',    [QuizController::class, 'submit'])->name('quiz.submit');
+});
+
+// ── Chat (real-time via SSE) ───────────────────────────────────────────────────
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/chat',                                      [ChatController::class, 'index'])->name('chat.index');
+    Route::post('/chat',                                     [ChatController::class, 'store'])->name('chat.store');
+    Route::post('/chat/{conversation}/messages',             [ChatController::class, 'sendMessage'])->name('chat.send');
+    Route::get('/chat/{conversation}/poll',                  [ChatController::class, 'poll'])->name('chat.poll');
+    Route::patch('/chat/{conversation}/read',                [ChatController::class, 'markRead'])->name('chat.read');
 });
 
 require __DIR__.'/settings.php';

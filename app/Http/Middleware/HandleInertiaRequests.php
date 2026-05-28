@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Message;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -45,6 +46,15 @@ class HandleInertiaRequests extends Middleware
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'unread_notifications_count' => fn () => $request->user()
                 ? \App\Models\AppNotification::where('user_id', $request->user()->id)
+                    ->whereNull('read_at')
+                    ->count()
+                : 0,
+            'unread_messages_count' => fn () => $request->user()
+                ? \App\Models\Message::whereHas('conversation', function ($q) use ($request) {
+                        $uid = $request->user()->id;
+                        $q->where('employer_id', $uid)->orWhere('job_seeker_id', $uid);
+                    })
+                    ->where('sender_id', '!=', $request->user()->id)
                     ->whereNull('read_at')
                     ->count()
                 : 0,

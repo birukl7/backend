@@ -9,8 +9,18 @@ export default defineConfig({
         host: '127.0.0.1',
         port: 5173,
         strictPort: true,
+        cors: true,
         hmr: {
             host: '127.0.0.1',
+        },
+        // Wayfinder regenerates these folders on every route change — ignore them
+        // so Vite doesn't enter a rebuild loop and hang the dev server.
+        watch: {
+            ignored: [
+                '**/resources/js/actions/**',
+                '**/resources/js/routes/**',
+                '**/resources/js/wayfinder/**',
+            ],
         },
     },
     plugins: [

@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import GoogleAuthButton from '@/components/google-auth-button';
 import AuthLayout from '@/layouts/auth-layout';
 import { register } from '@/routes';
 import { store } from '@/routes/login';
@@ -29,6 +30,19 @@ export default function Login({
             description="Enter your email and password below to log in"
         >
             <Head title="Log in" />
+
+            <GoogleAuthButton className="w-full" />
+
+            <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                        Or continue with email
+                    </span>
+                </div>
+            </div>
 
             <Form
                 {...store.form()}

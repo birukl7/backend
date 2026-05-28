@@ -4,6 +4,8 @@ import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileCo
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
+import ProfilePhotoUpload from '@/components/profile-photo-upload';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +14,6 @@ import SettingsLayout from '@/layouts/settings/layout';
 import { edit } from '@/routes/profile';
 import { send } from '@/routes/verification';
 import type { BreadcrumbItem } from '@/types';
-import { Badge } from '@/components/ui/badge';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -23,10 +24,16 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function Profile({
     mustVerifyEmail,
+    usesPassword,
     status,
+    maxProfilePhotoBytes,
+    maxProfilePhotoLabel,
 }: {
     mustVerifyEmail: boolean;
+    usesPassword: boolean;
     status?: string;
+    maxProfilePhotoBytes: number;
+    maxProfilePhotoLabel: string;
 }) {
     const { auth } = usePage().props;
 
@@ -41,12 +48,18 @@ export default function Profile({
                     <Heading
                         variant="small"
                         title="Profile information"
-                        description="Update your name and email address"
+                        description="Update your photo, name and email address"
                     />
 
                     <div>
                         Role: <Badge>{auth.roles.join(', ')}</Badge>
                     </div>
+
+                    <ProfilePhotoUpload
+                        user={auth.user}
+                        maxBytes={maxProfilePhotoBytes}
+                        maxLabel={maxProfilePhotoLabel}
+                    />
 
                     <Form
                         {...ProfileController.update.form()}
@@ -105,7 +118,7 @@ export default function Profile({
                                                 <Link
                                                     href={send()}
                                                     as="button"
-                                                    className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
+                                                    className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current!"
                                                 >
                                                     Click here to resend the
                                                     verification email.
@@ -148,7 +161,7 @@ export default function Profile({
                     </Form>
                 </div>
 
-                <DeleteUser />
+                <DeleteUser usesPassword={usesPassword} />
             </SettingsLayout>
         </AppLayout>
     );

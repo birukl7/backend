@@ -2,8 +2,11 @@
 
 namespace App\Providers;
 
+use App\Notifications\EmailVerifiedNotification;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -25,6 +28,14 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configureEventListeners();
+    }
+
+    protected function configureEventListeners(): void
+    {
+        Event::listen(Verified::class, function (Verified $event): void {
+            $event->user->notify(new EmailVerifiedNotification);
+        });
     }
 
     /**

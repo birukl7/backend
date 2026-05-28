@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Application;
 use App\Models\Cv;
 use App\Models\ScreeningResponse;
+use App\Models\User;
 use App\Models\Vacancy;
+use App\Notifications\ApplicationStatusNotification;
 use App\Services\AiCvSummaryService;
+use App\Services\UserNotifier;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -129,8 +132,45 @@ class ApplicationController extends Controller
             'status' => 'required|in:shortlisted,rejected,hired',
         ]);
  
-        $application->update(['status' => $request->status]);
- 
+        $status = $request->status;
+        $application->update(['status' => $status]);
+        $application->load(['vacancy', 'user']);
+
+        $jobTitle = $application->vacancy?->title ?? 'the position';
+        [$title, $body] = match ($status) {
+            'shortlisted' => [
+                'You have been shortlisted',
+                "Your application for \"{$jobTitle}\" has been shortlisted.",
+            ],
+            'hired' => [
+                'Congratulations — you have been hired',
+                "You have been selected for \"{$jobTitle}\". The employer will be in touch with next steps.",
+            ],
+            'rejected' => [
+                'Application update',
+                "Your application for \"{$jobTitle}\" was not selected at this time.",
+            ],
+            default => [
+                'Application status updated',
+                "Your application status for \"{$jobTitle}\" is now: {$status}.",
+            ],
+        };
+
+        UserNotifier::notify(
+            User::find($application->user_id),
+            new ApplicationStatusNotification($application, $status),
+            [
+                'type'  => 'application_status',
+                'title' => $title,
+                'body'  => $body,
+                'data'  => [
+                    'application_id' => $application->id,
+                    'vacancy_id'     => $application->vacancy_id,
+                    'status'         => $status,
+                ],
+            ],
+        );
+
         return back()->with('success', 'Application status updated.');
     }
 

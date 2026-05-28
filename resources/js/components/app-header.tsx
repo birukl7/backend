@@ -1,6 +1,8 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Menu } from 'lucide-react';
+import { Folder, LayoutGrid, Menu, MessageSquare, Search } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
+import AppLogoIcon from '@/components/app-logo-icon';
+import { Breadcrumbs } from '@/components/breadcrumbs';
 import { NotificationBell } from '@/components/notification-bell';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -22,31 +24,76 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/components/ui/sheet';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useInitials } from '@/hooks/use-initials';
-import {
-    getNavItemsForRole,
-    resolveAppRole,
-} from '@/config/navigation';
-import { cn } from '@/lib/utils';
-import type { Auth } from '@/types';
+import { cn, toUrl } from '@/lib/utils';
+// import { dashboard } from '@/routes';
+import type { BreadcrumbItem, NavItem } from '@/types';
+
+type Props = {
+    breadcrumbs?: BreadcrumbItem[];
+};
+
+type Role = 'employer' | 'user';
+
+const navConfig: Record<Role, NavItem[]> = {
+    employer: [
+        { title: 'jk', href: '/dashboard', icon: LayoutGrid },
+        { title: 'Users', href: '/users', icon: Folder },
+    ],
+    user: [
+        { title: 'Jobs', href: '/jobs' },
+        { title: 'CVs', href: '/cv' },
+        { title: 'My Applications', href: '/my-applications' },
+        { title: 'My Interviews', href: '/my-interviews' },
+        { title: 'Messages', href: '/chat', icon: MessageSquare },
+    ],
+};
+
+// const mainNavItems: NavItem[] = [
+//     {
+//         title: 'Dashboard',
+//         href: dashboard(),
+//         icon: LayoutGrid,
+//     },
+// ];
+
+const rightNavItems: NavItem[] = [
+    // {
+    //     title: 'Repository',
+    //     href: 'https://github.com/laravel/react-starter-kit',
+    //     icon: Folder,
+    // },
+    // {
+    //     title: 'Documentation',
+    //     href: 'https://laravel.com/docs/starter-kits#react',
+    //     icon: BookOpen,
+    // },
+];
 
 const activeItemStyles =
     'text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100';
 
-export function AppHeader() {
-    const { auth } = usePage<{ auth: Auth }>().props;
+export function AppHeader({ breadcrumbs = [] }: Props) {
+    const page = usePage();
+    const { auth, unread_messages_count } = page.props as typeof page.props & { unread_messages_count?: number };
     const getInitials = useInitials();
     const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
-    const role = resolveAppRole(auth.roles);
-    const mainNavItems = getNavItemsForRole(role);
-    const homeHref = role === 'employer' ? '/dashboard' : '/jobs';
+
+    const role: Role = (auth.roles?.[0] as Role) || 'user';
+    const mainNavItems: NavItem[] = navConfig[role] ?? navConfig.user;
 
     return (
         <>
             <div className="border-b border-sidebar-border/80">
                 <div className="mx-auto flex h-16 items-center px-4 md:max-w-7xl">
+                    {/* Mobile Menu */}
                     <div className="lg:hidden">
                         <Sheet>
                             <SheetTrigger asChild>
@@ -54,67 +101,74 @@ export function AppHeader() {
                                     variant="ghost"
                                     size="icon"
                                     className="mr-2 h-[34px] w-[34px]"
-                                    aria-label="Open navigation menu"
                                 >
                                     <Menu className="h-5 w-5" />
                                 </Button>
                             </SheetTrigger>
                             <SheetContent
                                 side="left"
-                                className="flex h-full w-72 flex-col bg-sidebar p-0"
+                                className="flex h-full w-64 flex-col items-stretch justify-between bg-sidebar"
                             >
                                 <SheetTitle className="sr-only">
                                     Navigation menu
                                 </SheetTitle>
-                                <SheetHeader className="border-b border-sidebar-border px-4 py-4 text-left">
-                                    <Link
-                                        href={homeHref}
-                                        className="flex items-center"
-                                        onClick={() => undefined}
-                                    >
-                                        <AppLogo />
-                                    </Link>
+                                <SheetHeader className="flex justify-start text-left">
+                                    <AppLogoIcon className="h-6 w-6 fill-current text-black dark:text-white" />
                                 </SheetHeader>
-                                <nav
-                                    className="flex flex-1 flex-col gap-1 overflow-y-auto p-4"
-                                    aria-label="Main navigation"
-                                >
-                                    {mainNavItems.map((item) => (
-                                        <Link
-                                            key={item.title}
-                                            href={item.href}
-                                            className={cn(
-                                                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                                                isCurrentUrl(item.href)
-                                                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                                                    : 'text-sidebar-foreground hover:bg-sidebar-accent/60',
-                                            )}
-                                        >
-                                            {item.icon && (
-                                                <item.icon className="h-5 w-5 shrink-0" />
-                                            )}
-                                            <span>{item.title}</span>
-                                        </Link>
-                                    ))}
-                                </nav>
+                                <div className="flex h-full flex-1 flex-col space-y-4 p-4">
+                                    <div className="flex h-full flex-col justify-between text-sm">
+                                        <div className="flex flex-col space-y-4">
+                                            {mainNavItems.map((item) => (
+                                                <Link
+                                                    key={item.title}
+                                                    href={item.href}
+                                                    className="flex items-center space-x-2 font-medium"
+                                                >
+                                                    {item.icon && (
+                                                        <item.icon className="h-5 w-5" />
+                                                    )}
+                                                    <span>{item.title}</span>
+                                                </Link>
+                                            ))}
+                                        </div>
+
+                                        <div className="flex flex-col space-y-4">
+                                            {rightNavItems.map((item) => (
+                                                <a
+                                                    key={item.title}
+                                                    href={toUrl(item.href)}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center space-x-2 font-medium"
+                                                >
+                                                    {item.icon && (
+                                                        <item.icon className="h-5 w-5" />
+                                                    )}
+                                                    <span>{item.title}</span>
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
                             </SheetContent>
                         </Sheet>
                     </div>
 
                     <Link
-                        href={homeHref}
+                        href={'/dashboard'}
                         prefetch
-                        className="flex min-w-0 items-center"
+                        className="flex items-center space-x-2"
                     >
                         <AppLogo />
                     </Link>
 
-                    <div className="ml-3 hidden h-full min-w-0 flex-1 items-center lg:flex lg:ml-4">
-                        <NavigationMenu className="flex h-full max-w-full items-stretch">
-                            <NavigationMenuList className="flex h-full flex-wrap items-stretch gap-1">
-                                {mainNavItems.map((item) => (
+                    {/* Desktop Navigation */}
+                    <div className="ml-6 hidden h-full items-center space-x-6 lg:flex">
+                        <NavigationMenu className="flex h-full items-stretch">
+                            <NavigationMenuList className="flex h-full items-stretch space-x-2">
+                                {mainNavItems.map((item, index) => (
                                     <NavigationMenuItem
-                                        key={item.title}
+                                        key={index}
                                         className="relative flex h-full items-center"
                                     >
                                         <Link
@@ -125,13 +179,21 @@ export function AppHeader() {
                                                     item.href,
                                                     activeItemStyles,
                                                 ),
-                                                'h-9 cursor-pointer px-4',
+                                                'h-9 cursor-pointer px-3',
                                             )}
                                         >
+                                            {item.icon && (
+                                                <item.icon className="mr-2 h-4 w-4" />
+                                            )}
                                             {item.title}
+                                            {item.href === '/chat' && (unread_messages_count ?? 0) > 0 && (
+                                                <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[9px] font-bold text-white">
+                                                    {(unread_messages_count ?? 0) > 99 ? '99+' : unread_messages_count}
+                                                </span>
+                                            )}
                                         </Link>
                                         {isCurrentUrl(item.href) && (
-                                            <div className="absolute bottom-0 left-0 h-0.5 w-full translate-y-px bg-black dark:bg-white" />
+                                            <div className="absolute bottom-0 left-0 h-0.5 w-full translate-y-px bg-black dark:bg-white"></div>
                                         )}
                                     </NavigationMenuItem>
                                 ))}
@@ -139,14 +201,46 @@ export function AppHeader() {
                         </NavigationMenu>
                     </div>
 
-                    <div className="ml-auto flex items-center gap-1 sm:gap-2">
+                    <div className="ml-auto flex items-center space-x-2">
+                        <div className="relative flex items-center space-x-1">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="group h-9 w-9 cursor-pointer"
+                            >
+                                <Search className="!size-5 opacity-80 group-hover:opacity-100" />
+                            </Button>
+                            <div className="ml-1 hidden gap-1 lg:flex">
+                                {rightNavItems.map((item) => (
+                                    <Tooltip key={item.title}>
+                                        <TooltipTrigger>
+                                            <a
+                                                href={toUrl(item.href)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="group inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent p-0 text-sm font-medium text-accent-foreground ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                                            >
+                                                <span className="sr-only">
+                                                    {item.title}
+                                                </span>
+                                                {item.icon && (
+                                                    <item.icon className="size-5 opacity-80 group-hover:opacity-100" />
+                                                )}
+                                            </a>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>{item.title}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                ))}
+                            </div>
+                        </div>
                         <NotificationBell />
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button
                                     variant="ghost"
                                     className="size-10 rounded-full p-1"
-                                    aria-label="User menu"
                                 >
                                     <Avatar className="size-8 overflow-hidden rounded-full">
                                         <AvatarImage
@@ -166,8 +260,13 @@ export function AppHeader() {
                     </div>
                 </div>
             </div>
-            {/* Breadcrumb row intentionally removed in header layout
-                so page content starts directly below the top nav. */}
+            {breadcrumbs.length > 1 && (
+                <div className="flex w-full border-b border-sidebar-border/70">
+                    <div className="mx-auto flex h-12 w-full items-center justify-start px-4 text-neutral-500 md:max-w-7xl">
+                        <Breadcrumbs breadcrumbs={breadcrumbs} />
+                    </div>
+                </div>
+            )}
         </>
     );
 }
