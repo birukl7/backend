@@ -5,6 +5,7 @@ namespace App\Providers;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -32,6 +33,13 @@ class AppServiceProvider extends ServiceProvider
     protected function configureDefaults(): void
     {
         Date::use(CarbonImmutable::class);
+
+        // Render sits behind a proxy / TLS terminator. Force HTTPS URL generation
+        // in production so Vite assets and favicon links are not emitted as http.
+        if (app()->isProduction()) {
+            URL::forceScheme('https');
+            URL::forceRootUrl(config('app.url'));
+        }
 
         DB::prohibitDestructiveCommands(
             app()->isProduction(),
