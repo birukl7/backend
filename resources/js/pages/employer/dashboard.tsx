@@ -1,4 +1,5 @@
 import { Head, usePage } from '@inertiajs/react';
+import { DashboardWelcome } from '@/components/dashboard-welcome';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 import {
@@ -217,11 +218,18 @@ export default function EmployerDashboard() {
     const hasApplications = stats.totalApplications > 0;
     const hasJobs = stats.totalJobs > 0;
 
+    const welcomeMeta =
+        stats.totalJobs > 0
+            ? `${stats.openJobs} open ${stats.openJobs === 1 ? 'position' : 'positions'} · ${stats.totalApplications} total ${stats.totalApplications === 1 ? 'application' : 'applications'}`
+            : 'Post your first job to start receiving applications.';
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
 
             <div className="flex flex-col gap-6 overflow-x-auto p-4 md:p-6">
+                <DashboardWelcome meta={welcomeMeta} />
+
                 {/* ── Stat cards ── */}
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                     <StatCard

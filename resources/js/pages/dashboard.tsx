@@ -1,36 +1,55 @@
-import { Head } from '@inertiajs/react';
-import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { DashboardWelcome } from '@/components/dashboard-welcome';
+import { PageContainer } from '@/components/ui/page-container';
 import AppLayout from '@/layouts/app-layout';
-// import { dashboard } from '@/routes';
-import type { BreadcrumbItem } from '@/types';
+import {
+    getNavItemsForRole,
+    resolveAppRole,
+} from '@/config/navigation';
+import type { Auth, BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Dashboard',
-        href: "/dashboard",
+        href: '/dashboard',
     },
 ];
 
 export default function Dashboard() {
+    const { auth } = usePage<{ auth: Auth }>().props;
+    const role = resolveAppRole(auth.roles);
+    const links = getNavItemsForRole(role);
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
-            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-                <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-                    <div className="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                        <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
-                    </div>
-                    <div className="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                        <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
-                    </div>
-                    <div className="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                        <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
-                    </div>
+            <PageContainer>
+                <DashboardWelcome className="mb-8" />
+
+                <h2 className="mb-4 text-lg font-semibold text-foreground">
+                    Quick links
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {links.map((item) => (
+                        <Link
+                            key={item.href}
+                            href={item.href}
+                            className="group flex items-start gap-4 rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/30 hover:bg-accent/30"
+                        >
+                            {item.icon && (
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                    <item.icon className="h-5 w-5" />
+                                </span>
+                            )}
+                            <span>
+                                <span className="block font-medium text-foreground group-hover:text-primary">
+                                    {item.title}
+                                </span>
+                            </span>
+                        </Link>
+                    ))}
                 </div>
-                <div className="relative min-h-[100vh] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 md:min-h-min dark:border-sidebar-border">
-                    <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
-                </div>
-            </div>
+            </PageContainer>
         </AppLayout>
     );
 }

@@ -1,6 +1,4 @@
-import { Link, usePage } from '@inertiajs/react';
-import AppLogoIcon from '@/components/app-logo-icon';
-import { home } from '@/routes';
+import { BrandLogo } from '@/components/brand-logo';
 import type { AuthLayoutProps } from '@/types';
 
 export default function AuthSplitLayout({
@@ -8,7 +6,6 @@ export default function AuthSplitLayout({
     title,
     description,
 }: AuthLayoutProps) {
-    const { name } = usePage().props;
 
     return (
         <div className="relative grid h-dvh grid-cols-1 lg:grid-cols-2">
@@ -22,13 +19,10 @@ export default function AuthSplitLayout({
 
                 <div className="relative z-10 flex flex-col items-center justify-center h-full max-w-md">
                     {/* Logo and brand */}
-                    <Link
-                        href={home()}
-                        className="mb-16 flex items-center gap-2 text-lg font-semibold text-white transition-opacity hover:opacity-80"
-                    >
-                        <AppLogoIcon className="size-8 fill-current text-white" />
-                        <span>{name}</span>
-                    </Link>
+                    <BrandLogo
+                        className="mb-16 text-white"
+                        imageClassName="h-10 w-auto object-contain"
+                    />
 
                     {/* Image container with modern styling */}
                     <div className="relative mb-12 w-full">
@@ -54,12 +48,11 @@ export default function AuthSplitLayout({
             <div className="flex items-center justify-center w-full px-6 py-12 sm:px-8 lg:px-12">
                 <div className="w-full max-w-2xl">
                     {/* Mobile logo */}
-                    <Link
-                        href={home()}
-                        className="relative z-20 flex items-center justify-center lg:hidden mb-8"
-                    >
-                        <AppLogoIcon className="h-10 fill-current text-black sm:h-12" />
-                    </Link>
+                    <BrandLogo
+                        className="relative z-20 mb-8 justify-center lg:hidden"
+                        imageClassName="h-10 w-auto object-contain sm:h-12"
+                        showName={false}
+                    />
                     
                     {/* Form header */}
                     <div className="flex flex-col gap-2 mb-8">
