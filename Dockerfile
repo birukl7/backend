@@ -1,21 +1,5 @@
 # syntax=docker/dockerfile:1.7
 
-## ---------------------------------------------------------------------------
-## 1) Frontend build stage (Vite)
-## ---------------------------------------------------------------------------
-FROM node:20-bookworm-slim AS frontend-builder
-
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY resources ./resources
-COPY public ./public
-COPY vite.config.ts tsconfig.json ./
-RUN npm run build
-
-## ---------------------------------------------------------------------------
-## 2) Production PHP + Apache stage
-## ---------------------------------------------------------------------------
 FROM php:8.3-apache-bookworm
 
 WORKDIR /var/www/html
@@ -25,6 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     unzip \
     curl \
+    ca-certificates \
+    gnupg \
     sqlite3 \
     libsqlite3-dev \
     libzip-dev \
@@ -34,6 +20,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j"$(nproc)" pdo pdo_sqlite mbstring zip gd opcache \
     && a2enmod rewrite headers \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Composer binary
@@ -47,12 +37,13 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
 # Copy app files
 COPY . .
 
-# Install PHP dependencies (no dev)
+# Install PHP dependencies (required before Vite/Wayfinder generation)
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist \
     && php artisan package:discover --ansi || true
 
-# Copy built frontend artifacts from node stage
-COPY --from=frontend-builder /app/public/build ./public/build
+# Install JS deps + build assets (Wayfinder needs php/artisan available)
+RUN npm ci \
+    && npm run build
 
 # Runtime permissions
 RUN mkdir -p storage bootstrap/cache \
