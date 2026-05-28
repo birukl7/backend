@@ -28,8 +28,8 @@ class InterviewScheduled extends Notification
             ->subject('Interview Scheduled')
             ->line('Your interview has been scheduled.')
             ->line('Date: ' . $this->interview->scheduled_at)
-            ->action('Join Interview', route('interview.test', [
-                'roomId' => $this->interview->meeting_link,
+            ->action('Join Interview', route('interviews.join', [
+                'interview' => $this->interview->id,
             ]));
     }
 }

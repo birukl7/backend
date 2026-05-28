@@ -237,7 +237,8 @@ if __name__ == "__main__":
     import uvicorn
 
     host = os.getenv("AI_SERVICE_HOST", "0.0.0.0")
-    port = int(os.getenv("AI_SERVICE_PORT", "8001"))
+    # Render sets PORT; local dev can use AI_SERVICE_PORT
+    port = int(os.getenv("PORT", os.getenv("AI_SERVICE_PORT", "8001")))
 
     logger.info("Starting AI Matching Service on %s:%d", host, port)
     uvicorn.run("main:app", host=host, port=port, reload=False)
