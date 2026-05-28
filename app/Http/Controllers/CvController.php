@@ -7,12 +7,20 @@ use App\Models\CvExperience;
 use App\Models\CvEducation;
 use App\Models\CvSkill;
 use App\Models\CvProject;
+use App\Services\AiCvSummaryService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class CvController extends Controller
 {
-    // GET /cv  — list all CVs for the authenticated user
+    /** Mark CV as edited so cached AI suggestions are regenerated. */
+    private function markCvContentChanged(Cv $cv): void
+    {
+        $cv->markContentChanged();
+    }
+
     public function index()
     {
         $cvs = Cv::where('user_id', auth()->id())
@@ -23,28 +31,29 @@ class CvController extends Controller
         return Inertia::render('CV/index', ['cvs' => $cvs]);
     }
 
-    // GET /cv/create  — show the "name your CV" page (optional, can redirect straight to show)
     public function create()
     {
         return Inertia::render('CV/Create');
     }
 
-    // POST /cv
     public function store(Request $request)
     {
-        $request->validate(['title' => 'required|string|max:120']);
+        $data = $request->validate([
+            'title'    => 'required|string|max:120',
+            'template' => 'nullable|in:classic,modern,minimal,executive,creative',
+        ]);
 
         $cv = Cv::create([
-            'user_id'      => auth()->id(),
-            'title'        => $request->title,
-            'is_default'   => false,
+            'user_id'       => auth()->id(),
+            'title'         => $data['title'],
+            'template'      => $data['template'] ?? 'classic',
+            'is_default'    => false,
             'section_order' => ['experience', 'education', 'skills', 'projects'],
         ]);
 
         return redirect()->route('cv.show', $cv->id);
     }
 
-    // GET /cv/{id}
     public function show($id)
     {
         $cv = Cv::with(['experiences', 'educations', 'skills', 'projects'])
@@ -54,7 +63,6 @@ class CvController extends Controller
         return Inertia::render('CV/show', ['cv' => $cv]);
     }
 
-    // PUT /cv/{id}  — update top-level CV fields (personal info, template, etc.)
     public function update(Request $request, $id)
     {
         $cv = Cv::where('user_id', auth()->id())->findOrFail($id);
@@ -69,7 +77,7 @@ class CvController extends Controller
             'linkedin'      => 'nullable|string|max:255',
             'github'        => 'nullable|string|max:255',
             'summary'       => 'nullable|string',
-            'template'      => 'nullable|in:classic,modern,minimal',
+            'template'      => 'nullable|in:classic,modern,minimal,executive,creative',
             'accent_color'  => 'nullable|string|max:20',
             'section_order' => 'nullable|array',
         ]);
@@ -79,11 +87,31 @@ class CvController extends Controller
         return back();
     }
 
-    // DELETE /cv/{id}
     public function destroy($id)
     {
-        Cv::where('user_id', auth()->id())->findOrFail($id)->delete();
+        $cv = Cv::where('user_id', auth()->id())->findOrFail($id);
+
+        if ($cv->photo_path) {
+            Storage::disk('public')->delete($cv->photo_path);
+        }
+
+        $cv->delete();
         return redirect()->route('cv.index');
+    }
+
+    public function uploadPhoto(Request $request, $id)
+    {
+        $cv = Cv::where('user_id', auth()->id())->findOrFail($id);
+        $request->validate(['photo' => 'required|image|max:3072|mimes:jpg,jpeg,png,webp']);
+
+        if ($cv->photo_path) {
+            Storage::disk('public')->delete($cv->photo_path);
+        }
+
+        $path = $request->file('photo')->store('cv-photos', 'public');
+        $cv->update(['photo_path' => $path]);
+
+        return back();
     }
 
     // ── Experiences ───────────────────────────────────────────────────────────
@@ -102,8 +130,9 @@ class CvController extends Controller
         ]);
         $data['cv_id'] = $cv->id;
         $data['sort_order'] = $cv->experiences()->max('sort_order') + 1;
-        $exp = CvExperience::create($data);
-        return back()->with('experience', $exp);
+        CvExperience::create($data);
+        $this->markCvContentChanged($cv);
+        return back();
     }
 
     public function updateExperience(Request $request, $cvId, $expId)
@@ -119,6 +148,7 @@ class CvController extends Controller
             'end_date'     => 'nullable|date',
             'is_current'   => 'boolean',
         ]));
+        $this->markCvContentChanged($cv);
         return back();
     }
 
@@ -126,6 +156,7 @@ class CvController extends Controller
     {
         $cv = Cv::where('user_id', auth()->id())->findOrFail($cvId);
         CvExperience::where('cv_id', $cv->id)->findOrFail($expId)->delete();
+        $this->markCvContentChanged($cv);
         return back();
     }
 
@@ -146,8 +177,9 @@ class CvController extends Controller
         ]);
         $data['cv_id'] = $cv->id;
         $data['sort_order'] = $cv->educations()->max('sort_order') + 1;
-        $edu = CvEducation::create($data);
-        return back()->with('education', $edu);
+        CvEducation::create($data);
+        $this->markCvContentChanged($cv);
+        return back();
     }
 
     public function updateEducation(Request $request, $cvId, $eduId)
@@ -164,6 +196,7 @@ class CvController extends Controller
             'end_date'         => 'nullable|date',
             'is_current'       => 'boolean',
         ]));
+        $this->markCvContentChanged($cv);
         return back();
     }
 
@@ -171,6 +204,7 @@ class CvController extends Controller
     {
         $cv = Cv::where('user_id', auth()->id())->findOrFail($cvId);
         CvEducation::where('cv_id', $cv->id)->findOrFail($eduId)->delete();
+        $this->markCvContentChanged($cv);
         return back();
     }
 
@@ -187,6 +221,7 @@ class CvController extends Controller
         $data['cv_id'] = $cv->id;
         $data['sort_order'] = $cv->skills()->max('sort_order') + 1;
         CvSkill::create($data);
+        $this->markCvContentChanged($cv);
         return back();
     }
 
@@ -199,6 +234,7 @@ class CvController extends Controller
             'proficiency_level' => 'required|in:beginner,intermediate,advanced,expert',
             'category'          => 'nullable|string|max:80',
         ]));
+        $this->markCvContentChanged($cv);
         return back();
     }
 
@@ -206,6 +242,7 @@ class CvController extends Controller
     {
         $cv = Cv::where('user_id', auth()->id())->findOrFail($cvId);
         CvSkill::where('cv_id', $cv->id)->findOrFail($skillId)->delete();
+        $this->markCvContentChanged($cv);
         return back();
     }
 
@@ -225,6 +262,7 @@ class CvController extends Controller
         $data['cv_id'] = $cv->id;
         $data['sort_order'] = $cv->projects()->max('sort_order') + 1;
         CvProject::create($data);
+        $this->markCvContentChanged($cv);
         return back();
     }
 
@@ -240,6 +278,7 @@ class CvController extends Controller
             'start_date'   => 'nullable|date',
             'end_date'     => 'nullable|date',
         ]));
+        $this->markCvContentChanged($cv);
         return back();
     }
 
@@ -247,6 +286,7 @@ class CvController extends Controller
     {
         $cv = Cv::where('user_id', auth()->id())->findOrFail($cvId);
         CvProject::where('cv_id', $cv->id)->findOrFail($projectId)->delete();
+        $this->markCvContentChanged($cv);
         return back();
     }
 
@@ -256,23 +296,96 @@ class CvController extends Controller
     {
         $cv = Cv::where('user_id', auth()->id())->findOrFail($cvId);
         $request->validate([
-            'type'  => 'required|in:experience,education,skills,projects',
-            'order' => 'required|array',
+            'type'    => 'required|in:experience,education,skills,projects',
+            'order'   => 'required|array',
             'order.*' => 'integer',
         ]);
 
         $map = [
-            'experience' => [CvExperience::class, 'cv_id'],
-            'education'  => [CvEducation::class,  'cv_id'],
-            'skills'     => [CvSkill::class,       'cv_id'],
-            'projects'   => [CvProject::class,     'cv_id'],
+            'experience' => CvExperience::class,
+            'education'  => CvEducation::class,
+            'skills'     => CvSkill::class,
+            'projects'   => CvProject::class,
         ];
 
-        [$model] = $map[$request->type];
+        $model = $map[$request->type];
         foreach ($request->order as $position => $id) {
             $model::where('cv_id', $cv->id)->where('id', $id)->update(['sort_order' => $position]);
         }
 
+        $this->markCvContentChanged($cv);
+
         return back();
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    //  AI SUMMARY (seeker)
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * POST /cv/{id}/ai-summary
+     * Generate (or refresh) the AI summary + improvement suggestions for the
+     * owner's CV. Persists the result so it can be reused without recalling
+     * the LLM until the user explicitly refreshes.
+     */
+    public function aiSummary(Request $request, $id, AiCvSummaryService $ai)
+    {
+        $cv = Cv::where('user_id', auth()->id())
+            ->with(['experiences', 'educations', 'skills', 'projects'])
+            ->findOrFail($id);
+
+        // Only return cache when the CV hasn't changed since generation.
+        $useCache = $request->boolean('cached')
+            && $cv->ai_summary
+            && $cv->ai_summary_generated_at
+            && $cv->ai_summary_generated_at->gte($cv->updated_at);
+
+        if ($useCache) {
+            return response()->json([
+                'cached'              => true,
+                'ai_summary'          => $cv->ai_summary,
+                'ai_suggestions'      => $cv->ai_suggestions,
+                'ai_improvements'     => $cv->ai_improvements,
+                'ai_strength_score'   => $cv->ai_strength_score,
+                'generated_at'        => $cv->ai_summary_generated_at,
+                'configured'          => $ai->isConfigured(),
+            ]);
+        }
+
+        $result = $ai->generateForSeeker($cv);
+
+        $now = Carbon::now();
+        $cv->update([
+            'ai_summary'              => $result['ai_summary'],
+            'ai_suggestions'          => $result['ai_suggestions'],
+            'ai_improvements'         => $result['ai_improvements'],
+            'ai_strength_score'       => $result['ai_strength_score'],
+            'ai_summary_generated_at' => $now,
+            'updated_at'              => $now,
+        ]);
+
+        return response()->json([
+            'cached'              => false,
+            'ai_summary'          => $cv->ai_summary,
+            'ai_suggestions'      => $cv->ai_suggestions,
+            'ai_improvements'     => $cv->ai_improvements,
+            'ai_strength_score'   => $cv->ai_strength_score,
+            'generated_at'        => $cv->ai_summary_generated_at,
+            'configured'          => $ai->isConfigured(),
+        ]);
+    }
+
+    /**
+     * POST /cv/{id}/use-ai-summary
+     * Apply the AI-generated summary to the CV's actual `summary` field.
+     */
+    public function useAiSummary($id)
+    {
+        $cv = Cv::where('user_id', auth()->id())->findOrFail($id);
+        abort_if(!$cv->ai_summary, 422, 'No AI summary available yet — generate one first.');
+
+        $cv->update(['summary' => $cv->ai_summary]);
+
+        return response()->json(['summary' => $cv->summary]);
     }
 }

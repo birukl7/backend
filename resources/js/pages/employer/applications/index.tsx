@@ -1,6 +1,8 @@
 import AppLayout from "@/layouts/app-layout";
 import { Head, router, useForm } from "@inertiajs/react";
 import { useState } from "react";
+import ScreeningReport, { ScreeningResponseData } from "@/components/screening-report";
+import EmployerCvBrief from "@/components/employer-cv-brief";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +36,7 @@ interface Application {
     user: { id: number; name: string; email: string; };
     cv: Cv;
     interview: Interview | null;
+    screening_response?: ScreeningResponseData | null;
 }
 
 interface Props { applications: Application[]; }
@@ -97,6 +100,17 @@ function CvPreviewDrawer({ app, onClose, onSchedule, onReschedule }: {
 
                 {/* Scrollable CV */}
                 <div className="flex-1 overflow-y-auto px-6 py-5">
+                    {/* AI brief — always available */}
+                    <div className="mb-5">
+                        <EmployerCvBrief applicationId={app.id} />
+                    </div>
+
+                    {app.screening_response && (
+                        <div className="mb-5">
+                            <ScreeningReport response={app.screening_response} />
+                        </div>
+                    )}
+
                     {app.cover_letter && (
                         <div className="mb-5 bg-amber-50 border border-amber-100 rounded-2xl px-5 py-4">
                             <p className="text-[11px] font-bold text-amber-600 uppercase tracking-widest mb-2">Cover Letter</p>
@@ -422,6 +436,23 @@ function ApplicationRow({ app, onViewCv, onSchedule }: {
                 </div>
                 <p className="text-[12px] text-slate-400 mt-0.5">{app.vacancy.title} · Applied {timeAgo(app.created_at)}</p>
             </div>
+
+            {app.screening_response?.ai_score !== null && app.screening_response?.ai_score !== undefined && (
+                <div
+                    className={`hidden md:flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shrink-0 ${
+                        app.screening_response.ai_score >= 80 ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
+                        app.screening_response.ai_score >= 60 ? "bg-blue-50 border-blue-200 text-blue-700" :
+                        app.screening_response.ai_score >= 35 ? "bg-amber-50 border-amber-200 text-amber-700" :
+                                                                "bg-red-50 border-red-200 text-red-600"
+                    }`}
+                    title="AI Screening score"
+                >
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                    </svg>
+                    AI {app.screening_response.ai_score}/100
+                </div>
+            )}
 
             {app.interview && (
                 <div className="hidden md:flex items-center gap-1.5 text-[11px] font-medium text-violet-600 bg-violet-50 border border-violet-100 px-2.5 py-1 rounded-full shrink-0">

@@ -1,6 +1,7 @@
 import AppLayout from '@/layouts/app-layout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
+import EmployerScreeningSetup from '@/components/employer-screening-setup';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -779,7 +780,7 @@ function ApplicantsPanel({ vacancyId }: { vacancyId: number }) {
 // ─── Job Dialog ───────────────────────────────────────────────────────────────
 
 type DialogMode = 'create' | 'edit' | 'view';
-type ViewTab = 'details' | 'applicants';
+type ViewTab = 'details' | 'applicants' | 'screening';
 
 interface DialogProps {
     mode: DialogMode;
@@ -934,7 +935,7 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                     {/* Tabs — only in view mode */}
                     {isView && (
                         <div className="flex shrink-0 gap-1 border-b border-slate-100 px-8 pt-3">
-                            {(['details', 'applicants'] as ViewTab[]).map(
+                            {(['details', 'applicants', 'screening'] as ViewTab[]).map(
                                 (tab) => (
                                     <button
                                         key={tab}
@@ -947,7 +948,14 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                                     >
                                         {tab === 'details'
                                             ? 'Details'
-                                            : 'Applicants'}
+                                            : tab === 'applicants'
+                                              ? 'Applicants'
+                                              : 'Screening'}
+                                        {tab === 'screening' && (
+                                            <span className="ml-1.5 inline-flex items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                                                AI
+                                            </span>
+                                        )}
                                     </button>
                                 ),
                             )}
@@ -957,7 +965,10 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                     {/* Scrollable body */}
                     <div className="flex-1 overflow-y-auto px-8 py-6">
                         {isView && vacancy ? (
-                            viewTab === 'details' ? (
+                            viewTab === 'screening' ? (
+                                // ── Screening tab ──────────────────────────────────
+                                <EmployerScreeningSetup vacancyId={vacancy.id} />
+                            ) : viewTab === 'details' ? (
                                 // ── Details tab ────────────────────────────────────
                                 <div className="space-y-6">
                                     <div className="flex flex-wrap items-center gap-2">

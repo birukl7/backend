@@ -11,13 +11,25 @@ class Cv extends Model
     protected $fillable = [
         'user_id', 'title', 'is_default',
         'full_name', 'email', 'phone', 'location', 'website', 'linkedin', 'github', 'summary',
-        'template', 'accent_color', 'section_order',
+        'template', 'accent_color', 'section_order', 'photo_path',
+        'ai_summary', 'ai_suggestions', 'ai_improvements', 'ai_strength_score', 'ai_summary_generated_at',
     ];
 
+    protected $appends = ['photo_url'];
+
     protected $casts = [
-        'is_default' => 'boolean',
-        'section_order' => 'array',
+        'is_default'              => 'boolean',
+        'section_order'           => 'array',
+        'ai_suggestions'          => 'array',
+        'ai_improvements'         => 'array',
+        'ai_strength_score'       => 'integer',
+        'ai_summary_generated_at' => 'datetime',
     ];
+
+    public function getPhotoUrlAttribute(): ?string
+    {
+        return $this->photo_path ? asset('storage/' . $this->photo_path) : null;
+    }
 
     public function user(): BelongsTo
     {
@@ -42,5 +54,11 @@ class Cv extends Model
     public function projects(): HasMany
     {
         return $this->hasMany(CvProject::class)->orderBy('sort_order');
+    }
+
+    /** Bump updated_at so AI summary cache is considered stale. */
+    public function markContentChanged(): void
+    {
+        $this->touch();
     }
 }

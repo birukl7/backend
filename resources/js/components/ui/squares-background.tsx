@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react"
+import { useRef, useEffect } from "react"
 
 interface SquaresProps {
   direction?: "right" | "left" | "up" | "down" | "diagonal"
@@ -22,7 +22,7 @@ export function Squares({
   const numSquaresX = useRef<number>(0)
   const numSquaresY = useRef<number>(0)
   const gridOffset = useRef({ x: 0, y: 0 })
-  const [hoveredSquare, setHoveredSquare] = useState<{
+  const hoveredSquareRef = useRef<{
     x: number
     y: number
   } | null>(null)
@@ -45,7 +45,6 @@ export function Squares({
       numSquaresY.current = Math.ceil(canvas.height / squareSize) + 1
     }
 
-    window.addEventListener("resize", resizeCanvas)
     resizeCanvas()
 
     const drawGrid = () => {
@@ -62,9 +61,9 @@ export function Squares({
           const squareY = y - (gridOffset.current.y % squareSize)
 
           if (
-            hoveredSquare &&
-            Math.floor((x - startX) / squareSize) === hoveredSquare.x &&
-            Math.floor((y - startY) / squareSize) === hoveredSquare.y
+            hoveredSquareRef.current &&
+            Math.floor((x - startX) / squareSize) === hoveredSquareRef.current.x &&
+            Math.floor((y - startY) / squareSize) === hoveredSquareRef.current.y
           ) {
             ctx.fillStyle = hoverFillColor
             ctx.fillRect(squareX, squareY, squareSize, squareSize)
@@ -137,11 +136,11 @@ export function Squares({
         (mouseY + gridOffset.current.y - startY) / squareSize,
       )
 
-      setHoveredSquare({ x: hoveredSquareX, y: hoveredSquareY })
+      hoveredSquareRef.current = { x: hoveredSquareX, y: hoveredSquareY }
     }
 
     const handleMouseLeave = () => {
-      setHoveredSquare(null)
+      hoveredSquareRef.current = null
     }
 
     // Event listeners
@@ -162,7 +161,7 @@ export function Squares({
         cancelAnimationFrame(requestRef.current)
       }
     }
-  }, [direction, speed, borderColor, hoverFillColor, hoveredSquare, squareSize])
+  }, [direction, speed, borderColor, hoverFillColor, squareSize])
 
   return (
     <canvas

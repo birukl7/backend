@@ -27,4 +27,14 @@ class Vacancy extends Model
     public function applications(){
         return $this->hasMany(Application::class);
     }
+
+    public function screening()
+    {
+        return $this->hasOne(JobScreening::class);
+    }
+
+    public function screeningResponses()
+    {
+        return $this->hasMany(ScreeningResponse::class);
+    }
 }
