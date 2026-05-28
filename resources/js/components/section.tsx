@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 import type { SectionProps } from "../types"
-import { Link, usePage } from "@inertiajs/react";
+import { router, usePage } from "@inertiajs/react";
 // import { register } from "module";
 
 export default function Section({ id, title, subtitle, content, isActive, showButton, buttonText, canRegister }: SectionProps) {
@@ -58,46 +58,24 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
           transition={{ duration: 0.5, delay: 0.4 }}
           className="mt-8 flex items-center gap-4"
         >
-          <>
-              <button
-                  type="button"
-                  onClick={() => goToGuestPage('/login')}
-                  className="inline-flex min-h-11 items-center rounded-lg border border-gray-500 px-6 py-2.5 text-sm text-gray-300 hover:border-gray-300"
-              >
-                  Dashboard
-              </Link>
-          ) : (
-              <>
-                  <Link
-                      href="/login"
-                      className="inline-block rounded-sm border border-gray-500 px-5 py-1.5 text-sm text-gray-300 hover:border-gray-300"
-                  >
-                      Log in
-                  </Link>
+          <button
+            type="button"
+            onClick={() => goToGuestPage('/login')}
+            className="inline-flex min-h-11 items-center rounded-lg border border-gray-500 px-6 py-2.5 text-sm text-gray-300 hover:border-gray-300"
+          >
+            {auth?.user ? 'Dashboard' : 'Log in'}
+          </button>
 
-                  {canRegister && (
-                      <Link
-                          href="/register"
-                          className="inline-block rounded-sm bg-white text-black px-5 py-1.5 text-sm font-medium ml-4 hover:bg-gray-200"
-                      >
-                          Register
-                      </Link>
-                  )}
-              </>
+          {canRegister && !auth?.user && (
+            <button
+              type="button"
+              onClick={() => goToGuestPage('/register')}
+              className="inline-flex min-h-11 items-center rounded-lg bg-white px-6 py-2.5 text-sm font-medium text-black hover:bg-gray-200"
+            >
+              {ctaText}
+            </button>
           )}
-                  Log in
-              </button>
 
-              {canRegister && (
-                  <button
-                      type="button"
-                      onClick={() => goToGuestPage('/register')}
-                      className="inline-flex min-h-11 items-center rounded-lg bg-white px-6 py-2.5 text-sm font-medium text-black hover:bg-gray-200"
-                  >
-                      {ctaText}
-                  </button>
-              )}
-          </>
           {/* <Button
             variant="outline"
             size="lg"
