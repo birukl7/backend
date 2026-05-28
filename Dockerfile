@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg \
     sqlite3 \
     libsqlite3-dev \
+    libonig-dev \
     libzip-dev \
     libpng-dev \
     libjpeg62-turbo-dev \
