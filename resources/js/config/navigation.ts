@@ -1,4 +1,5 @@
 import {
+    BarChart3,
     Briefcase,
     Calendar,
     FileText,
@@ -73,6 +74,11 @@ export const jobSeekerNavItems: NavItem[] = [
         title: 'Quizzes',
         href: '/quiz',
         icon: GraduationCap,
+    },
+    {
+        title: 'Hiring Stats',
+        href: '/hiring-statistics',
+        icon: BarChart3,
     },
     {
         title: 'Messages',

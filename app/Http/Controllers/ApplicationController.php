@@ -41,7 +41,7 @@ class ApplicationController extends Controller
         $cv = Cv::where('id', $data['cv_id'])->where('user_id', $userId)->firstOrFail();
  
         $vacancy = \App\Models\Vacancy::findOrFail($data['vacancy_id']);
-        abort_if($vacancy->status !== 'open', 422, 'This job is no longer open.');
+        abort_if($vacancy->is_expired, 422, 'The application deadline for this job has passed.');
  
         $existing = Application::where('vacancy_id', $data['vacancy_id'])->where('user_id', $userId)->first();
         if ($existing) return back()->withErrors(['apply' => 'You have already applied.']);

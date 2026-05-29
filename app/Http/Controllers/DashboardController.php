@@ -25,9 +25,17 @@ class DashboardController extends Controller
             ->get();
 
         $totalJobs         = $vacancies->count();
-        $openJobs          = $vacancies->where('status', 'open')->count();
-        $closedJobs        = $vacancies->where('status', 'closed')->count();
+        // Availability is now driven by the application deadline rather than a
+        // manual open/closed toggle: a job is "open" until its deadline passes.
+        $openJobs          = $vacancies->where('is_expired', false)->count();
+        $closedJobs        = $vacancies->where('is_expired', true)->count();
         $totalApplications = $vacancies->sum('applications_count');
+        $totalHires        = Application::whereHas(
+                'vacancy',
+                fn ($q) => $q->where('user_id', $userId)
+            )
+            ->where('status', 'hired')
+            ->count();
 
         // Applications by status breakdown
         $statusBreakdown = Application::whereHas(
@@ -84,6 +92,7 @@ class DashboardController extends Controller
                 'openJobs'          => $openJobs,
                 'closedJobs'        => $closedJobs,
                 'totalApplications' => $totalApplications,
+                'totalHires'        => $totalHires,
             ],
             'statusBreakdown'     => $statusBreakdown,
             'applicationsPerJob'  => $applicationsPerJob,
