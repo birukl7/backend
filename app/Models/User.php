@@ -95,4 +95,19 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(AppNotification::class, 'user_id')->latest();
     }
+
+    public function applications(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Application::class);
+    }
+
+    public function vacancies(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Vacancy::class);
+    }
+
+    public function cvs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Cv::class);
+    }
 }
