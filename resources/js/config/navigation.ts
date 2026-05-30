@@ -1,9 +1,11 @@
 import {
+    BarChart3,
     Briefcase,
     Calendar,
     FileText,
     GraduationCap,
     LayoutGrid,
+    MessageSquare,
     Users,
     Workflow,
 } from 'lucide-react';
@@ -40,6 +42,11 @@ export const employerNavItems: NavItem[] = [
         href: '/employer/interviews',
         icon: Calendar,
     },
+    {
+        title: 'Messages',
+        href: '/chat',
+        icon: MessageSquare,
+    },
 ];
 
 export const jobSeekerNavItems: NavItem[] = [
@@ -67,6 +74,16 @@ export const jobSeekerNavItems: NavItem[] = [
         title: 'Quizzes',
         href: '/quiz',
         icon: GraduationCap,
+    },
+    {
+        title: 'Hiring Stats',
+        href: '/hiring-statistics',
+        icon: BarChart3,
+    },
+    {
+        title: 'Messages',
+        href: '/chat',
+        icon: MessageSquare,
     },
 ];
 

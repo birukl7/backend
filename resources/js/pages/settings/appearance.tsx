@@ -25,7 +25,7 @@ export default function Appearance() {
                     <Heading
                         variant="small"
                         title="Appearance settings"
-                        description="Update your account's appearance settings"
+                        description="The application currently uses light theme only"
                     />
                     <AppearanceTabs />
                 </div>

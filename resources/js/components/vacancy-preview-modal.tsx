@@ -33,6 +33,7 @@ interface Vacancy {
     work_type: 'remote' | 'on_site' | 'hybrid';
     application_deadline: string | null;
     created_at: string;
+    is_expired?: boolean;
 }
 
 interface UserCv {
@@ -823,6 +824,7 @@ export function VacancyPreviewModal({
         ? daysUntil(vacancy.application_deadline)
         : null;
     const isUrgent = deadline !== null && deadline <= 5 && deadline >= 0;
+    const isExpired = vacancy.is_expired ?? (deadline !== null && deadline < 0);
 
     return (
         <>
@@ -902,11 +904,9 @@ export function VacancyPreviewModal({
                                 {EMPLOYMENT_LABELS[vacancy.employment_type]}
                             </span>
                             <span
-                                className={`rounded-full border px-3 py-1 text-[12px] font-medium ${vacancy.status === 'open' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}
+                                className={`rounded-full border px-3 py-1 text-[12px] font-medium ${!isExpired ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}
                             >
-                                {vacancy.status === 'open'
-                                    ? '● Open'
-                                    : 'Closed'}
+                                {!isExpired ? '● Open' : 'Closed'}
                             </span>
                         </div>
                     </div>
@@ -1021,7 +1021,7 @@ export function VacancyPreviewModal({
                             </svg>
                             Already Applied
                         </div>
-                    ) : vacancy.status !== 'open' ? (
+                    ) : isExpired ? (
                         <div className="flex flex-1 items-center justify-center rounded-xl bg-slate-100 py-3 text-sm font-semibold text-slate-400">
                             Applications Closed
                         </div>

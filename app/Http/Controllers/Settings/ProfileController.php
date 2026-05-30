@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
+use App\Http\Requests\Settings\ProfilePhotoUploadRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
+use App\Support\PhpIniSize;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,7 +24,10 @@ class ProfileController extends Controller
     {
         return Inertia::render('settings/profile', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'usesPassword' => $request->user()->hasPassword(),
             'status' => $request->session()->get('status'),
+            'maxProfilePhotoBytes' => PhpIniSize::uploadMaxKilobytes() * 1024,
+            'maxProfilePhotoLabel' => PhpIniSize::uploadMaxLabel(),
         ]);
     }
 
@@ -42,11 +48,48 @@ class ProfileController extends Controller
     }
 
     /**
+     * Upload or replace the user's profile photo.
+     */
+    public function uploadPhoto(ProfilePhotoUploadRequest $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        if ($user->profile_photo && ! str_starts_with($user->profile_photo, 'http')) {
+            Storage::disk('public')->delete($user->profile_photo);
+        }
+
+        $path = $request->file('photo')->store('profile-photos', 'public');
+        $user->update(['profile_photo' => $path]);
+
+        return to_route('profile.edit');
+    }
+
+    /**
+     * Remove the user's profile photo.
+     */
+    public function destroyPhoto(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        if ($user->profile_photo && ! str_starts_with($user->profile_photo, 'http')) {
+            Storage::disk('public')->delete($user->profile_photo);
+        }
+
+        $user->update(['profile_photo' => null]);
+
+        return to_route('profile.edit');
+    }
+
+    /**
      * Delete the user's profile.
      */
     public function destroy(ProfileDeleteRequest $request): RedirectResponse
     {
         $user = $request->user();
+
+        if ($user->profile_photo && ! str_starts_with($user->profile_photo, 'http')) {
+            Storage::disk('public')->delete($user->profile_photo);
+        }
 
         Auth::logout();
 

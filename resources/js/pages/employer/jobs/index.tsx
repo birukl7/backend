@@ -25,6 +25,7 @@ interface Vacancy {
     title: string;
     description: string;
     requirements: string | null;
+    tags?: string[] | null;
     location: string | null;
     salary_min: string | null;
     salary_max: string | null;
@@ -34,6 +35,20 @@ interface Vacancy {
     application_deadline: string | null;
     created_at: string;
     updated_at: string;
+    is_expired?: boolean;
+    applications_count?: number;
+    hires_count?: number;
+}
+
+interface HiringStats {
+    employer_id: number;
+    employer_name: string | null;
+    total_jobs: number;
+    total_applications: number;
+    total_hires: number;
+    hires_last_30_days: number;
+    hire_rate: number;
+    member_since: string | null;
 }
 
 interface Application {
@@ -49,6 +64,7 @@ interface Application {
 
 interface Props {
     vacancies: Vacancy[];
+    hiring_stats?: HiringStats;
 }
 
 // ─── Label maps ───────────────────────────────────────────────────────────────
@@ -162,6 +178,65 @@ function Label({ children }: { children: React.ReactNode }) {
 }
 function FieldErr({ msg }: { msg?: string }) {
     return msg ? <p className="mt-1 text-[11px] text-red-500">{msg}</p> : null;
+}
+
+function TagsField({
+    tags,
+    onChange,
+}: {
+    tags: string[];
+    onChange: (tags: string[]) => void;
+}) {
+    const [input, setInput] = useState('');
+
+    function addTag(raw: string) {
+        const value = raw.trim().replace(/^#/, '').toLowerCase();
+        if (!value || tags.includes(value) || tags.length >= 20) return;
+        onChange([...tags, value]);
+    }
+
+    function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            addTag(input);
+            setInput('');
+        } else if (e.key === 'Backspace' && input === '' && tags.length > 0) {
+            onChange(tags.slice(0, -1));
+        }
+    }
+
+    return (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 transition-all focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-200">
+            {tags.map((tag) => (
+                <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-0.5 text-[12px] font-medium text-indigo-600"
+                >
+                    #{tag}
+                    <button
+                        type="button"
+                        onClick={() => onChange(tags.filter((t) => t !== tag))}
+                        className="text-indigo-400 transition-colors hover:text-indigo-700"
+                    >
+                        ×
+                    </button>
+                </span>
+            ))}
+            <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={() => {
+                    addTag(input);
+                    setInput('');
+                }}
+                placeholder={
+                    tags.length === 0 ? 'react, remote, senior…' : 'Add tag…'
+                }
+                className="min-w-[120px] flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-300"
+            />
+        </div>
+    );
 }
 
 // ─── Application Status Updater ───────────────────────────────────────────────
@@ -792,11 +867,11 @@ const defaultForm = {
     title: '',
     description: '',
     requirements: '',
+    tags: [] as string[],
     location: '',
     salary_min: '',
     salary_max: '',
     employment_type: 'full_time' as EmploymentType,
-    status: 'open' as Status,
     work_type: 'on_site' as WorkType,
     application_deadline: '',
 };
@@ -814,11 +889,11 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                   title: vacancy.title,
                   description: vacancy.description,
                   requirements: vacancy.requirements ?? '',
+                  tags: vacancy.tags ?? [],
                   location: vacancy.location ?? '',
                   salary_min: vacancy.salary_min ?? '',
                   salary_max: vacancy.salary_max ?? '',
                   employment_type: vacancy.employment_type,
-                  status: vacancy.status,
                   work_type: vacancy.work_type,
                   application_deadline: vacancy.application_deadline ?? '',
               }
@@ -973,14 +1048,14 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                                 <div className="space-y-6">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span
-                                            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium ${vacancy.status === 'open' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}
+                                            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium ${!vacancy.is_expired ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}
                                         >
                                             <span
-                                                className={`h-1.5 w-1.5 rounded-full ${vacancy.status === 'open' ? 'bg-emerald-500' : 'bg-slate-400'}`}
+                                                className={`h-1.5 w-1.5 rounded-full ${!vacancy.is_expired ? 'bg-emerald-500' : 'bg-slate-400'}`}
                                             />
-                                            {vacancy.status === 'open'
+                                            {!vacancy.is_expired
                                                 ? 'Open'
-                                                : 'Closed'}
+                                                : 'Expired'}
                                         </span>
                                         <span
                                             className={`rounded-full border px-3 py-1.5 text-[12px] font-medium ${WORK_TYPE_COLORS[vacancy.work_type]}`}
@@ -1070,6 +1145,25 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                                         </div>
                                     )}
 
+                                    {vacancy.tags &&
+                                        vacancy.tags.length > 0 && (
+                                            <div>
+                                                <p className="mb-2 text-[11px] font-semibold tracking-widest text-slate-400 uppercase">
+                                                    Tags
+                                                </p>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {vacancy.tags.map((tag) => (
+                                                        <span
+                                                            key={tag}
+                                                            className="rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-0.5 text-[11px] font-medium text-indigo-600"
+                                                        >
+                                                            #{tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
                                     {isUrgent && deadline !== null && (
                                         <div className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
                                             <svg
@@ -1154,6 +1248,26 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                                     />
                                     <FieldErr msg={errors.requirements} />
                                 </div>
+                                <div>
+                                    <Label>Tags</Label>
+                                    <TagsField
+                                        tags={data.tags}
+                                        onChange={(tags) =>
+                                            setData('tags', tags)
+                                        }
+                                    />
+                                    <p className="mt-1 text-[11px] text-slate-400">
+                                        Add skills, perks or seniority to help
+                                        candidates filter and improve matching.
+                                        Press Enter or comma to add.
+                                    </p>
+                                    <FieldErr
+                                        msg={
+                                            (errors as Record<string, string>)
+                                                .tags
+                                        }
+                                    />
+                                </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <Label>Location</Label>
@@ -1171,18 +1285,33 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                                         <FieldErr msg={errors.location} />
                                     </div>
                                     <div>
-                                        <Label>Application Deadline</Label>
+                                        <Label>
+                                            Application Deadline{' '}
+                                            <span className="text-red-400">
+                                                *
+                                            </span>
+                                        </Label>
                                         <input
                                             type="date"
                                             className={inp2col}
                                             value={data.application_deadline}
+                                            min={
+                                                new Date(Date.now() + 86400000)
+                                                    .toISOString()
+                                                    .split('T')[0]
+                                            }
                                             onChange={(e) =>
                                                 setData(
                                                     'application_deadline',
                                                     e.target.value,
                                                 )
                                             }
+                                            required
                                         />
+                                        <p className="mt-1 text-[11px] text-slate-400">
+                                            The job automatically closes after
+                                            this date.
+                                        </p>
                                         <FieldErr
                                             msg={errors.application_deadline}
                                         />
@@ -1224,7 +1353,7 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                                         <FieldErr msg={errors.salary_max} />
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-3 gap-4">
+                                <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <Label>
                                             Employment Type{' '}
@@ -1289,31 +1418,6 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                                             </option>
                                             <option value="hybrid">
                                                 Hybrid
-                                            </option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <Label>
-                                            Status{' '}
-                                            <span className="text-red-400">
-                                                *
-                                            </span>
-                                        </Label>
-                                        <select
-                                            className={
-                                                inp2col + ' cursor-pointer'
-                                            }
-                                            value={data.status}
-                                            onChange={(e) =>
-                                                setData(
-                                                    'status',
-                                                    e.target.value as Status,
-                                                )
-                                            }
-                                        >
-                                            <option value="open">Open</option>
-                                            <option value="closed">
-                                                Closed
                                             </option>
                                         </select>
                                     </div>
@@ -1407,12 +1511,17 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
 
 // ─── Stats bar ────────────────────────────────────────────────────────────────
 
-function StatsBar({ vacancies }: { vacancies: Vacancy[] }) {
-    const open = vacancies.filter((v) => v.status === 'open').length;
-    const closed = vacancies.filter((v) => v.status === 'closed').length;
+function StatsBar({
+    vacancies,
+    hiringStats,
+}: {
+    vacancies: Vacancy[];
+    hiringStats?: HiringStats;
+}) {
+    const active = vacancies.filter((v) => !v.is_expired).length;
 
     return (
-        <div className="mb-6 grid grid-cols-3 gap-4">
+        <div className="mb-6 grid grid-cols-4 gap-4">
             {[
                 {
                     label: 'Total Postings',
@@ -1421,16 +1530,22 @@ function StatsBar({ vacancies }: { vacancies: Vacancy[] }) {
                     bg: 'bg-white',
                 },
                 {
-                    label: 'Open',
-                    value: open,
+                    label: 'Active',
+                    value: active,
                     color: 'text-emerald-600',
                     bg: 'bg-emerald-50',
                 },
                 {
-                    label: 'Closed',
-                    value: closed,
-                    color: 'text-slate-500',
-                    bg: 'bg-slate-50',
+                    label: 'Total Hires',
+                    value: hiringStats?.total_hires ?? 0,
+                    color: 'text-violet-600',
+                    bg: 'bg-violet-50',
+                },
+                {
+                    label: 'Hire Rate',
+                    value: `${hiringStats?.hire_rate ?? 0}%`,
+                    color: 'text-blue-600',
+                    bg: 'bg-blue-50',
                 },
             ].map((s) => (
                 <div
@@ -1464,7 +1579,8 @@ function JobRow({
         ? daysUntil(vacancy.application_deadline)
         : null;
     const isUrgent = deadline !== null && deadline <= 5 && deadline >= 0;
-    const isExpired = deadline !== null && deadline < 0;
+    const isExpired =
+        vacancy.is_expired ?? (deadline !== null && deadline < 0);
     const salary = formatSalary(vacancy.salary_min, vacancy.salary_max);
 
     return (
@@ -1473,7 +1589,7 @@ function JobRow({
             onClick={onView}
         >
             <div
-                className={`h-12 w-1 shrink-0 rounded-full ${vacancy.status === 'open' ? 'bg-emerald-400' : 'bg-slate-200'}`}
+                className={`h-12 w-1 shrink-0 rounded-full ${!isExpired ? 'bg-emerald-400' : 'bg-slate-200'}`}
             />
             <div className="min-w-0 flex-1">
                 <div className="mb-1 flex items-center gap-2">
@@ -1481,10 +1597,15 @@ function JobRow({
                         {vacancy.title}
                     </h3>
                     <span
-                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${vacancy.status === 'open' ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-slate-200 bg-slate-100 text-slate-400'}`}
+                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${!isExpired ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-slate-200 bg-slate-100 text-slate-400'}`}
                     >
-                        {vacancy.status === 'open' ? '● OPEN' : 'CLOSED'}
+                        {!isExpired ? '● OPEN' : 'EXPIRED'}
                     </span>
+                    {(vacancy.hires_count ?? 0) > 0 && (
+                        <span className="shrink-0 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-600">
+                            {vacancy.hires_count} hired
+                        </span>
+                    )}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     {vacancy.location && (
@@ -1585,9 +1706,9 @@ function JobRow({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-type FilterStatus = 'all' | Status;
+type FilterStatus = 'all' | 'active' | 'expired';
 
-export default function EmployerJobsIndex({ vacancies }: Props) {
+export default function EmployerJobsIndex({ vacancies, hiring_stats }: Props) {
     const [dialog, setDialog] = useState<{
         mode: DialogMode;
         vacancy?: Vacancy;
@@ -1606,12 +1727,15 @@ export default function EmployerJobsIndex({ vacancies }: Props) {
     }
 
     const filtered = vacancies.filter((v) => {
-        if (filterStatus !== 'all' && v.status !== filterStatus) return false;
+        const expired = v.is_expired ?? false;
+        if (filterStatus === 'active' && expired) return false;
+        if (filterStatus === 'expired' && !expired) return false;
         if (search.trim()) {
             const q = search.toLowerCase();
             return (
                 v.title.toLowerCase().includes(q) ||
-                (v.location ?? '').toLowerCase().includes(q)
+                (v.location ?? '').toLowerCase().includes(q) ||
+                (v.tags ?? []).some((t) => t.toLowerCase().includes(q))
             );
         }
         return true;
@@ -1653,7 +1777,7 @@ export default function EmployerJobsIndex({ vacancies }: Props) {
                     </button>
                 </div>
 
-                <StatsBar vacancies={vacancies} />
+                <StatsBar vacancies={vacancies} hiringStats={hiring_stats} />
 
                 <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
                     <div className="relative min-w-48 flex-1">
@@ -1677,7 +1801,7 @@ export default function EmployerJobsIndex({ vacancies }: Props) {
                         />
                     </div>
                     <div className="flex gap-1.5 rounded-xl bg-slate-100 p-1">
-                        {(['all', 'open', 'closed'] as FilterStatus[]).map(
+                        {(['all', 'active', 'expired'] as FilterStatus[]).map(
                             (s) => (
                                 <button
                                     key={s}

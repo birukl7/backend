@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import GoogleAuthButton from '@/components/google-auth-button';
 import AuthLayout from '@/layouts/auth-layout';
 import { login } from '@/routes';
 import { store } from '@/routes/register';
@@ -111,8 +112,16 @@ export default function Register() {
                         onClick={() => setStep(2)}
                         className="w-full h-11 rounded-lg font-semibold bg-slate-900 hover:bg-slate-800 text-white transition-all shadow-md hover:shadow-lg"
                     >
-                        Continue
+                        Continue with email
                     </Button>
+
+                    {role && (
+                        <GoogleAuthButton
+                            role={role}
+                            className="w-full h-11"
+                            label="Sign up with Google"
+                        />
+                    )}
                 </div>
             )}
 
@@ -127,6 +136,23 @@ export default function Register() {
                     {({ processing, errors }) => (
                         <>
                             <input type="hidden" name="role" value={role} />
+
+                            <GoogleAuthButton
+                                role={role as 'job_seeker' | 'employer'}
+                                className="w-full"
+                                label="Sign up with Google"
+                            />
+
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <span className="w-full border-t" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-background px-2 text-muted-foreground">
+                                        Or sign up with email
+                                    </span>
+                                </div>
+                            </div>
 
                             <div className="space-y-6">
                                 {/* COMMON FIELDS - TWO COLUMNS */}

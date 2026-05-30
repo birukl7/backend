@@ -16,7 +16,11 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 
-export default function DeleteUser() {
+export default function DeleteUser({
+    usesPassword = true,
+}: {
+    usesPassword?: boolean;
+}) {
     const passwordInput = useRef<HTMLInputElement>(null);
 
     return (
@@ -49,9 +53,10 @@ export default function DeleteUser() {
                         </DialogTitle>
                         <DialogDescription>
                             Once your account is deleted, all of its resources
-                            and data will also be permanently deleted. Please
-                            enter your password to confirm you would like to
-                            permanently delete your account.
+                            and data will also be permanently deleted.
+                            {usesPassword
+                                ? ' Please enter your password to confirm you would like to permanently delete your account.'
+                                : ' This action cannot be undone.'}
                         </DialogDescription>
 
                         <Form
@@ -65,24 +70,28 @@ export default function DeleteUser() {
                         >
                             {({ resetAndClearErrors, processing, errors }) => (
                                 <>
-                                    <div className="grid gap-2">
-                                        <Label
-                                            htmlFor="password"
-                                            className="sr-only"
-                                        >
-                                            Password
-                                        </Label>
+                                    {usesPassword && (
+                                        <div className="grid gap-2">
+                                            <Label
+                                                htmlFor="password"
+                                                className="sr-only"
+                                            >
+                                                Password
+                                            </Label>
 
-                                        <PasswordInput
-                                            id="password"
-                                            name="password"
-                                            ref={passwordInput}
-                                            placeholder="Password"
-                                            autoComplete="current-password"
-                                        />
+                                            <PasswordInput
+                                                id="password"
+                                                name="password"
+                                                ref={passwordInput}
+                                                placeholder="Password"
+                                                autoComplete="current-password"
+                                            />
 
-                                        <InputError message={errors.password} />
-                                    </div>
+                                            <InputError
+                                                message={errors.password}
+                                            />
+                                        </div>
+                                    )}
 
                                     <DialogFooter className="gap-2">
                                         <DialogClose asChild>

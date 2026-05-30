@@ -4,6 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Application;
 use App\Models\Interview;
+use App\Models\User;
+use App\Notifications\InterviewCancelledNotification;
+use App\Notifications\InterviewRescheduledNotification;
+use App\Notifications\InterviewScheduledNotification;
+use App\Services\UserNotifier;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -62,7 +67,26 @@ class InterviewController extends Controller
  
         // Update application status to shortlisted automatically
         $application->update(['status' => 'shortlisted']);
- 
+
+        $interview->load(['application.vacancy', 'employer']);
+        $jobSeeker = User::find($application->user_id);
+        $vacancyTitle = $application->vacancy?->title ?? 'a position';
+        $when = $interview->scheduled_at?->format('M j, Y g:i A');
+
+        UserNotifier::notify(
+            $jobSeeker,
+            new InterviewScheduledNotification($interview),
+            [
+                'type'  => 'interview_scheduled',
+                'title' => 'Interview invitation',
+                'body'  => "You are invited to interview for \"{$vacancyTitle}\" on {$when}.",
+                'data'  => [
+                    'interview_id' => $interview->id,
+                    'vacancy_id'   => $application->vacancy_id,
+                ],
+            ],
+        );
+
         return back()->with('success', 'Interview scheduled successfully!');
     }
  
@@ -86,7 +110,26 @@ class InterviewController extends Controller
             'timezone'       => $data['timezone'] ?? $interview->timezone,
             'status'         => 'scheduled',
         ]);
- 
+
+        $interview->load(['application.vacancy', 'employer']);
+        $jobSeeker = User::find($interview->job_seeker_id);
+        $vacancyTitle = $interview->application?->vacancy?->title ?? 'a position';
+        $when = $interview->scheduled_at?->format('M j, Y g:i A');
+
+        UserNotifier::notify(
+            $jobSeeker,
+            new InterviewRescheduledNotification($interview),
+            [
+                'type'  => 'interview_rescheduled',
+                'title' => 'Interview rescheduled',
+                'body'  => "Your interview for \"{$vacancyTitle}\" has been moved to {$when}.",
+                'data'  => [
+                    'interview_id' => $interview->id,
+                    'vacancy_id'   => $interview->application?->vacancy_id,
+                ],
+            ],
+        );
+
         return back()->with('success', 'Interview rescheduled.');
     }
  
@@ -105,9 +148,32 @@ class InterviewController extends Controller
      */
     public function destroy(Interview $interview)
     {
-        $user = auth()->id();
-        abort_if($interview->employer_id !== $user && $interview->job_seeker_id !== $user, 403);
+        $userId = auth()->id();
+        abort_if($interview->employer_id !== $userId && $interview->job_seeker_id !== $userId, 403);
+
         $interview->update(['status' => 'cancelled']);
+        $interview->load(['application.vacancy']);
+
+        $vacancyTitle = $interview->application?->vacancy?->title ?? 'a position';
+        $recipientId = $userId === $interview->employer_id
+            ? $interview->job_seeker_id
+            : $interview->employer_id;
+        $recipient = User::find($recipientId);
+
+        UserNotifier::notify(
+            $recipient,
+            new InterviewCancelledNotification($interview),
+            [
+                'type'  => 'interview_cancelled',
+                'title' => 'Interview cancelled',
+                'body'  => "The interview for \"{$vacancyTitle}\" has been cancelled.",
+                'data'  => [
+                    'interview_id' => $interview->id,
+                    'vacancy_id'   => $interview->application?->vacancy_id,
+                ],
+            ],
+        );
+
         return back()->with('success', 'Interview cancelled.');
     }
  

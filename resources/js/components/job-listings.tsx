@@ -5,12 +5,24 @@ import { DashboardWelcome } from '@/components/dashboard-welcome';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface EmployerStats {
+    employer_id: number;
+    employer_name: string | null;
+    total_jobs: number;
+    total_applications: number;
+    total_hires: number;
+    hires_last_30_days: number;
+    hire_rate: number;
+    member_since: string | null;
+}
+
 interface Vacancy {
     id: number;
     user_id: number;
     title: string;
     description: string;
     requirements: string | null;
+    tags?: string[] | null;
     location: string | null;
     salary_min: string | null;
     salary_max: string | null;
@@ -26,6 +38,14 @@ interface Vacancy {
     created_at: string;
     updated_at: string;
     screening_required?: boolean;
+    is_expired?: boolean;
+    employer_stats?: EmployerStats | null;
+    employer?: {
+        id: number;
+        name: string;
+        company_name: string | null;
+        company_website: string | null;
+    } | null;
 }
 
 interface UserCv {
@@ -54,8 +74,9 @@ interface Props {
     applied_ids?: number[];
     user_cvs?: UserCv[];
     ai_matches?: Record<number, number>; // vacancy_id -> score (0.0 – 1.0)
-    sidebar_stats?: SidebarStats;
+    sidebar_stats?: SidebarStats | null;
     profile_completion?: number; // 0–100
+    is_authenticated?: boolean;
 }
 
 // ─── Label maps ───────────────────────────────────────────────────────────────
@@ -1053,16 +1074,154 @@ function ProfileSidebar({
     );
 }
 
+// ─── Tag list ─────────────────────────────────────────────────────────────────
+
+function TagList({
+    tags,
+    max,
+    onToggle,
+    active = [],
+}: {
+    tags: string[];
+    max?: number;
+    onToggle?: (tag: string) => void;
+    active?: string[];
+}) {
+    const shown = max ? tags.slice(0, max) : tags;
+    const extra = max && tags.length > max ? tags.length - max : 0;
+
+    return (
+        <div className="flex flex-wrap gap-1.5">
+            {shown.map((tag) => {
+                const isActive = active.includes(tag);
+                return (
+                    <span
+                        key={tag}
+                        onClick={
+                            onToggle
+                                ? (e) => {
+                                      e.stopPropagation();
+                                      onToggle(tag);
+                                  }
+                                : undefined
+                        }
+                        className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                            onToggle ? 'cursor-pointer' : ''
+                        } ${
+                            isActive
+                                ? 'border-indigo-300 bg-indigo-600 text-white'
+                                : 'border-indigo-100 bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                        }`}
+                    >
+                        #{tag}
+                    </span>
+                );
+            })}
+            {extra > 0 && (
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-400">
+                    +{extra}
+                </span>
+            )}
+        </div>
+    );
+}
+
+// ─── Employer hiring history ────────────────────────────────────────────────
+
+function EmployerHistoryCard({ stats }: { stats: EmployerStats }) {
+    const metrics = [
+        {
+            label: 'Total hires',
+            value: stats.total_hires,
+            color: 'text-emerald-600',
+        },
+        {
+            label: 'Jobs posted',
+            value: stats.total_jobs,
+            color: 'text-blue-600',
+        },
+        {
+            label: 'Hire rate',
+            value: `${stats.hire_rate}%`,
+            color: 'text-violet-600',
+        },
+    ];
+
+    return (
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
+            <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
+                        <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                        </svg>
+                    </span>
+                    <h3 className="text-[13px] font-bold text-slate-800">
+                        Employer hiring history
+                    </h3>
+                </div>
+                {stats.employer_name && (
+                    <span className="max-w-[140px] truncate text-[12px] font-medium text-slate-400">
+                        {stats.employer_name}
+                    </span>
+                )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+                {metrics.map((m) => (
+                    <div
+                        key={m.label}
+                        className="rounded-xl border border-slate-100 bg-white px-2 py-2.5 text-center"
+                    >
+                        <p className={`text-lg font-bold ${m.color}`}>
+                            {m.value}
+                        </p>
+                        <p className="text-[10px] tracking-wide text-slate-400 uppercase">
+                            {m.label}
+                        </p>
+                    </div>
+                ))}
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400">
+                <span>
+                    {stats.total_hires > 0
+                        ? `${stats.hires_last_30_days} hired in the last 30 days`
+                        : 'No hires recorded yet'}
+                </span>
+                {stats.member_since && (
+                    <span>
+                        Hiring since{' '}
+                        {new Date(stats.member_since).getFullYear()}
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // ─── Job Detail Drawer ────────────────────────────────────────────────────────
 
 function JobDrawer({
     vacancy,
     hasApplied,
+    isAuthenticated,
     onClose,
     onApply,
 }: {
     vacancy: Vacancy;
     hasApplied: boolean;
+    isAuthenticated: boolean;
     onClose: () => void;
     onApply: () => void;
 }) {
@@ -1071,6 +1230,8 @@ function JobDrawer({
         ? daysUntil(vacancy.application_deadline)
         : null;
     const isUrgent = deadline !== null && deadline <= 5 && deadline >= 0;
+    const isExpired = vacancy.is_expired ?? (deadline !== null && deadline < 0);
+    const tags = vacancy.tags ?? [];
 
     return (
         <>
@@ -1137,13 +1298,17 @@ function JobDrawer({
                                 {EMPLOYMENT_LABELS[vacancy.employment_type]}
                             </span>
                             <span
-                                className={`rounded-full border px-3 py-1 text-[12px] font-medium ${vacancy.status === 'open' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}
+                                className={`rounded-full border px-3 py-1 text-[12px] font-medium ${!isExpired ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}
                             >
-                                {vacancy.status === 'open'
-                                    ? '● Open'
-                                    : 'Closed'}
+                                {!isExpired ? '● Open' : 'Closed'}
                             </span>
                         </div>
+
+                        {tags.length > 0 && (
+                            <div className="mt-3">
+                                <TagList tags={tags} />
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -1232,11 +1397,30 @@ function JobDrawer({
                             </p>
                         </div>
                     )}
+
+                    {/* Employer hiring history — builds trust before applying */}
+                    {vacancy.employer_stats && (
+                        <EmployerHistoryCard stats={vacancy.employer_stats} />
+                    )}
                 </div>
 
                 {/* Sticky footer with Apply button */}
                 <div className="flex gap-3 border-t border-slate-100 bg-white px-6 py-4">
-                    {hasApplied ? (
+                    {!isAuthenticated ? (
+                        <button
+                            onClick={onApply}
+                            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                        >
+                            Log in to Apply
+                            <svg
+                                className="h-4 w-4"
+                                viewBox="0 0 16 16"
+                                fill="currentColor"
+                            >
+                                <path d="M1.5 2.5l13 5.5-13 5.5V9l9-1-9-1V2.5z" />
+                            </svg>
+                        </button>
+                    ) : hasApplied ? (
                         <div className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 py-3 text-sm font-semibold text-emerald-700">
                             <svg
                                 className="h-4 w-4"
@@ -1249,7 +1433,7 @@ function JobDrawer({
                             </svg>
                             Already Applied
                         </div>
-                    ) : vacancy.status !== 'open' ? (
+                    ) : isExpired ? (
                         <div className="flex flex-1 items-center justify-center rounded-xl bg-slate-100 py-3 text-sm font-semibold text-slate-400">
                             Applications Closed
                         </div>
@@ -1307,7 +1491,9 @@ function JobCard({
         ? daysUntil(vacancy.application_deadline)
         : null;
     const isUrgent = deadline !== null && deadline <= 5 && deadline >= 0;
-    const isExpired = deadline !== null && deadline < 0;
+    const isExpired =
+        vacancy.is_expired ?? (deadline !== null && deadline < 0);
+    const tags = vacancy.tags ?? [];
 
     return (
         <div
@@ -1368,7 +1554,7 @@ function JobCard({
                             Applied
                         </span>
                     )}
-                    {vacancy.status === 'open' && !isExpired ? (
+                    {!isExpired ? (
                         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
                             Open
@@ -1401,7 +1587,28 @@ function JobCard({
                         {vacancy.requirements}
                     </span>
                 )}
+                {vacancy.employer_stats &&
+                    vacancy.employer_stats.total_hires > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-600">
+                            <svg
+                                className="h-3 w-3"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                            >
+                                <path strokeLinecap="round" d="M2 8l4 4 8-8" />
+                            </svg>
+                            {vacancy.employer_stats.total_hires} hired
+                        </span>
+                    )}
             </div>
+
+            {tags.length > 0 && (
+                <div className="mb-4">
+                    <TagList tags={tags} max={4} />
+                </div>
+            )}
 
             <div className="flex items-center justify-between border-t border-slate-100 pt-3">
                 <div>
@@ -1435,6 +1642,99 @@ function JobCard({
     );
 }
 
+// ─── Guest (unauthenticated) UI ───────────────────────────────────────────────
+
+function GuestSidebar() {
+    return (
+        <aside className="w-60 shrink-0 space-y-3">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+                    <svg
+                        className="h-6 w-6"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a7.5 7.5 0 0115 0"
+                        />
+                    </svg>
+                </div>
+                <h2 className="text-[14px] font-bold text-slate-900">
+                    Join to apply
+                </h2>
+                <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+                    Create an account to apply for jobs, get AI recommendations,
+                    and track your applications.
+                </p>
+                <a
+                    href="/register"
+                    className="mt-4 block rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                >
+                    Sign up
+                </a>
+                <a
+                    href="/login"
+                    className="mt-2 block rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                    Log in
+                </a>
+            </div>
+            <Link
+                href="/hiring-statistics"
+                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 transition-colors hover:bg-slate-50"
+            >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                    <svg
+                        className="h-4 w-4"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M2 13h12M4 13V7M8 13V3M12 13V9"
+                        />
+                    </svg>
+                </span>
+                <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-medium text-slate-800">
+                        Hiring statistics
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                        See who's hiring on the platform
+                    </p>
+                </div>
+            </Link>
+        </aside>
+    );
+}
+
+function GuestHero({ count }: { count: number }) {
+    return (
+        <div className="relative overflow-hidden rounded-2xl border border-blue-200/80 bg-gradient-to-br from-blue-50 via-white to-emerald-50 px-5 py-6 sm:px-6">
+            <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-blue-700 uppercase">
+                Job board
+            </span>
+            <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                Find your next opportunity
+            </h1>
+            <p className="mt-1 text-sm font-medium text-blue-700/90">
+                Browse open roles from employers actively hiring.
+            </p>
+            <p className="mt-2 text-sm text-slate-500">
+                {count} {count === 1 ? 'position' : 'positions'} available · log
+                in to apply.
+            </p>
+        </div>
+    );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 type FilterWorkType = 'all' | Vacancy['work_type'];
@@ -1447,14 +1747,16 @@ export default function JobListings({
     ai_matches = {},
     sidebar_stats,
     profile_completion = 0,
+    is_authenticated = true,
 }: Props) {
-    const { auth } = usePage<{ auth: { user: AuthUser } }>().props;
+    const { auth } = usePage<{ auth: { user: AuthUser | null } }>().props;
     const user = auth.user;
+    const isAuthenticated = is_authenticated && !!user;
 
     const [search, setSearch] = useState('');
     const [workType, setWorkType] = useState<FilterWorkType>('all');
     const [employment, setEmployment] = useState<FilterEmployment>('all');
-    const [showOpenOnly, setShowOpenOnly] = useState(false);
+    const [activeTags, setActiveTags] = useState<string[]>([]);
     const [selected, setSelected] = useState<Vacancy | null>(null);
     const [applying, setApplying] = useState<Vacancy | null>(null);
     const [screening, setScreening] = useState<Vacancy | null>(null);
@@ -1464,50 +1766,59 @@ export default function JobListings({
     const [localAppliedIds, setLocalAppliedIds] =
         useState<number[]>(applied_ids);
 
-    const filtered = vacancies.filter((v) => {
-        if (showOpenOnly && v.status !== 'open') return false;
+    // All unique tags across the board, for the advanced tag filter.
+    const allTags = Array.from(
+        new Set(vacancies.flatMap((v) => v.tags ?? [])),
+    ).sort();
+
+    function toggleTag(tag: string) {
+        setActiveTags((prev) =>
+            prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+        );
+    }
+
+    function matchesFilters(v: Vacancy): boolean {
         if (workType !== 'all' && v.work_type !== workType) return false;
         if (employment !== 'all' && v.employment_type !== employment)
             return false;
+        // Tag filter — vacancy must include every selected tag (AND match).
+        if (activeTags.length > 0) {
+            const vTags = v.tags ?? [];
+            if (!activeTags.every((t) => vTags.includes(t))) return false;
+        }
         if (search.trim()) {
             const q = search.toLowerCase();
             return (
                 v.title.toLowerCase().includes(q) ||
                 v.description.toLowerCase().includes(q) ||
-                (v.location ?? '').toLowerCase().includes(q)
+                (v.location ?? '').toLowerCase().includes(q) ||
+                (v.tags ?? []).some((t) => t.toLowerCase().includes(q))
             );
         }
         return true;
-    });
+    }
+
+    const filtered = vacancies.filter(matchesFilters);
 
     const hasAiMatches = Object.keys(ai_matches).length > 0;
 
     // AI-ranked list: vacancies with score >= 30%, sorted best-first, respects active filters
     const aiRecommended = hasAiMatches
         ? vacancies
-              .filter((v) => {
-                  if ((ai_matches[v.id] ?? 0) < 0.3) return false;
-                  if (showOpenOnly && v.status !== 'open') return false;
-                  if (workType !== 'all' && v.work_type !== workType)
-                      return false;
-                  if (employment !== 'all' && v.employment_type !== employment)
-                      return false;
-                  if (search.trim()) {
-                      const q = search.toLowerCase();
-                      return (
-                          v.title.toLowerCase().includes(q) ||
-                          v.description.toLowerCase().includes(q) ||
-                          (v.location ?? '').toLowerCase().includes(q)
-                      );
-                  }
-                  return true;
-              })
+              .filter((v) => (ai_matches[v.id] ?? 0) >= 0.3 && matchesFilters(v))
               .sort((a, b) => (ai_matches[b.id] ?? 0) - (ai_matches[a.id] ?? 0))
         : [];
 
     const displayList = activeTab === 'recommended' ? aiRecommended : filtered;
 
     function openApply(vacancy: Vacancy) {
+        // Guests must sign in before applying.
+        if (!isAuthenticated) {
+            router.visit(
+                `/login?redirect=${encodeURIComponent('/jobs')}`,
+            );
+            return;
+        }
         setSelected(null); // close drawer
         if (vacancy.screening_required) {
             setScreening(vacancy);
@@ -1537,20 +1848,28 @@ export default function JobListings({
             `}</style>
 
             <div className="flex min-h-0 w-full gap-5 px-6 py-6">
-                <ProfileSidebar
-                    user={user}
-                    stats={sidebar_stats}
-                    profileCompletion={profile_completion}
-                />
+                {isAuthenticated && user ? (
+                    <ProfileSidebar
+                        user={user}
+                        stats={sidebar_stats ?? undefined}
+                        profileCompletion={profile_completion}
+                    />
+                ) : (
+                    <GuestSidebar />
+                )}
 
                 <div className="min-w-0 flex-1 space-y-4">
-                    <DashboardWelcome
-                        meta={
-                            activeTab === 'recommended'
-                                ? `${aiRecommended.length} AI ${aiRecommended.length === 1 ? 'match' : 'matches'} based on your profile`
-                                : `${filtered.length} ${filtered.length === 1 ? 'position' : 'positions'} available on the job board`
-                        }
-                    />
+                    {isAuthenticated ? (
+                        <DashboardWelcome
+                            meta={
+                                activeTab === 'recommended'
+                                    ? `${aiRecommended.length} AI ${aiRecommended.length === 1 ? 'match' : 'matches'} based on your profile`
+                                    : `${filtered.length} ${filtered.length === 1 ? 'position' : 'positions'} available on the job board`
+                            }
+                        />
+                    ) : (
+                        <GuestHero count={filtered.length} />
+                    )}
 
                     <div className="flex items-center justify-between">
                         <div>
@@ -1689,22 +2008,29 @@ export default function JobListings({
                                 <option value="temporary">Temporary</option>
                                 <option value="internship">Internship</option>
                             </select>
-                            <label className="ml-auto flex cursor-pointer items-center gap-2">
-                                <div
-                                    onClick={() =>
-                                        setShowOpenOnly(!showOpenOnly)
-                                    }
-                                    className={`relative h-5 w-9 cursor-pointer rounded-full transition-colors ${showOpenOnly ? 'bg-blue-500' : 'bg-slate-200'}`}
+                            {activeTags.length > 0 && (
+                                <button
+                                    onClick={() => setActiveTags([])}
+                                    className="ml-auto flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-medium text-slate-400 transition-colors hover:text-slate-600"
                                 >
-                                    <span
-                                        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${showOpenOnly ? 'translate-x-4' : ''}`}
-                                    />
-                                </div>
-                                <span className="text-[13px] text-slate-600 select-none">
-                                    Open only
-                                </span>
-                            </label>
+                                    Clear tags ({activeTags.length})
+                                </button>
+                            )}
                         </div>
+
+                        {/* Advanced tag filter */}
+                        {allTags.length > 0 && (
+                            <div className="border-t border-slate-100 pt-3">
+                                <p className="mb-2 text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                                    Filter by tags
+                                </p>
+                                <TagList
+                                    tags={allTags}
+                                    active={activeTags}
+                                    onToggle={toggleTag}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {displayList.length === 0 ? (
@@ -1778,6 +2104,7 @@ export default function JobListings({
                 <JobDrawer
                     vacancy={selected}
                     hasApplied={localAppliedIds.includes(selected.id)}
+                    isAuthenticated={isAuthenticated}
                     onClose={() => setSelected(null)}
                     onApply={() => openApply(selected)}
                 />
