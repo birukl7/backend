@@ -11,6 +11,8 @@ interface Cv {
     template: string;
     accent_color: string;
     full_name: string | null;
+    source?: string;
+    original_filename?: string | null;
     experiences_count: number;
     educations_count: number;
     skills_count: number;
@@ -196,7 +198,21 @@ const THUMB_MAP: Record<TemplateKey, React.ComponentType<{ accent: string }>> = 
 
 // ─── Existing CV thumbnail ────────────────────────────────────────────────────
 
+function UploadThumb() {
+    return (
+        <div className="w-full h-full bg-amber-50 flex flex-col items-center justify-center gap-2 p-3">
+            <svg className="w-8 h-8 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path strokeLinecap="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+            </svg>
+            <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide">PDF / DOCX</span>
+        </div>
+    );
+}
+
 function CvThumbnail({ cv }: { cv: Cv }) {
+    if (cv.source === 'upload') {
+        return <UploadThumb />;
+    }
     const tpl = (cv.template || "classic") as TemplateKey;
     const tmpl = TEMPLATES.find((t) => t.key === tpl) ?? TEMPLATES[0];
     const accent = cv.accent_color || tmpl.accent;
@@ -214,9 +230,12 @@ export default function Index({ cvs }: Props) {
     const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey | null>(null);
     const [cvName, setCvName] = useState("");
     const [creating, setCreating] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState<number | null>(null);
     const [hoveredId, setHoveredId] = useState<number | null>(null);
     const nameInputRef = useRef<HTMLInputElement>(null);
+    const uploadInputRef = useRef<HTMLInputElement>(null);
 
     function pickTemplate(key: TemplateKey) {
         setSelectedTemplate(key);
@@ -239,6 +258,31 @@ export default function Index({ cvs }: Props) {
         setMenuOpen(null);
     }
 
+    function uploadCv(file: File) {
+        const extension = file.name.split(".").pop()?.toLowerCase();
+        if (!extension || !["pdf", "docx"].includes(extension)) {
+            setUploadError("Please upload a PDF or DOCX file.");
+            return;
+        }
+
+        setUploadError(null);
+        const formData = new FormData();
+        formData.append("file", file);
+        setUploading(true);
+        router.post("/cv/upload", formData, {
+            forceFormData: true,
+            preserveScroll: true,
+            onError: (errors) => {
+                setUploadError(
+                    (errors.file as string) ||
+                        (errors.upload as string) ||
+                        "The CV could not be uploaded. Please try again.",
+                );
+            },
+            onFinish: () => setUploading(false),
+        });
+    }
+
     const selectedMeta = TEMPLATES.find((t) => t.key === selectedTemplate);
 
     return (
@@ -246,6 +290,40 @@ export default function Index({ cvs }: Props) {
             <Head title="My CVs" />
 
             <div className="max-w-6xl mx-auto px-6 py-8 space-y-10">
+
+                {/* ── Upload CV section ─────────────────────────────────── */}
+                <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/50 p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900 tracking-tight">Upload a CV</h2>
+                            <p className="text-slate-500 text-sm mt-0.5">PDF or DOCX — use alongside your built CVs when applying</p>
+                        </div>
+                        <div>
+                            <input
+                                ref={uploadInputRef}
+                                type="file"
+                                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                className="hidden"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) uploadCv(file);
+                                    e.target.value = "";
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => uploadInputRef.current?.click()}
+                                disabled={uploading}
+                                className="inline-flex items-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+                            >
+                                {uploading ? "Uploading…" : "Choose file to upload"}
+                            </button>
+                        </div>
+                    </div>
+                    {uploadError && (
+                        <p className="mt-3 text-sm text-red-600">{uploadError}</p>
+                    )}
+                </div>
 
                 {/* ── Create New CV section ─────────────────────────────── */}
                 <div>
@@ -351,17 +429,26 @@ export default function Index({ cvs }: Props) {
                                     onMouseLeave={() => { setHoveredId(null); setMenuOpen(null); }}
                                 >
                                     <div className="relative aspect-[3/4]">
-                                        <Link
-                                            href={`/cv/${cv.id}`}
-                                            className="block w-full h-full rounded-xl overflow-hidden border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200 bg-slate-50"
-                                        >
-                                            <CvThumbnail cv={cv} />
-                                        </Link>
+                                        {cv.source === 'upload' ? (
+                                            <a
+                                                href={`/cv/${cv.id}/download`}
+                                                className="block w-full h-full rounded-xl overflow-hidden border border-slate-200 hover:border-amber-300 hover:shadow-lg transition-all duration-200 bg-slate-50"
+                                            >
+                                                <CvThumbnail cv={cv} />
+                                            </a>
+                                        ) : (
+                                            <Link
+                                                href={`/cv/${cv.id}`}
+                                                className="block w-full h-full rounded-xl overflow-hidden border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200 bg-slate-50"
+                                            >
+                                                <CvThumbnail cv={cv} />
+                                            </Link>
+                                        )}
 
-                                        {/* Template badge */}
+                                        {/* Template / upload badge */}
                                         <div className="absolute bottom-2 left-2">
                                             <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/20 text-white backdrop-blur-sm">
-                                                {cv.template || "classic"}
+                                                {cv.source === 'upload' ? 'upload' : (cv.template || "classic")}
                                             </span>
                                         </div>
 

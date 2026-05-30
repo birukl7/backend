@@ -18,7 +18,7 @@ class ScreeningController extends Controller
      */
     public function start(Vacancy $vacancy)
     {
-        abort_if($vacancy->status !== 'open', 422, 'This job is no longer open.');
+        abort_if($vacancy->is_expired, 422, 'The application deadline for this job has passed.');
 
         $screening = $vacancy->screening;
         abort_if(!$screening || !$screening->is_enabled, 404, 'No screening is required for this job.');
