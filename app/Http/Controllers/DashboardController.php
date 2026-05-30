@@ -11,6 +11,10 @@ class DashboardController extends Controller
 {
     public function employer()
     {
+        if (Auth::user()?->hasRole('admin')) {
+            return redirect()->route('admin.dashboard');
+        }
+
         // Redirect job seekers to /jobs using Spatie's role check
         if (Auth::user()?->hasRole('job_seeker')) {
             return redirect('/jobs');

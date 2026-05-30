@@ -13,19 +13,28 @@ class JobSystemSeeder extends Seeder
 {
     public function run(): void
     {
-        // Get or create admin user
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@example.com'],
-            [
-                'name' => 'Admin User',
-                'password' => Hash::make('password'), // change in production
-            ]
-        );
+        $adminAccounts = [
+            ['email' => 'admin@skillchain.com', 'name' => 'SkillChain Admin'],
+            ['email' => 'admin@example.com', 'name' => 'Admin User'],
+        ];
 
-        // Assign admin role (Spatie)
-        if (!$admin->hasRole('admin')) {
-            $admin->assignRole('admin');
+        foreach ($adminAccounts as $account) {
+            $admin = User::firstOrCreate(
+                ['email' => $account['email']],
+                ['name' => $account['name']],
+            );
+
+            $admin->forceFill([
+                'password' => 'Admin@123',
+                'email_verified_at' => $admin->email_verified_at ?? now(),
+            ])->save();
+
+            if (! $admin->hasRole('admin')) {
+                $admin->assignRole('admin');
+            }
         }
+
+        $admin = User::where('email', 'admin@skillchain.com')->first();
 
         $employmentTypes = ['full_time', 'part_time', 'contract', 'temporary', 'internship'];
         $statuses = ['open', 'closed'];
