@@ -15,6 +15,7 @@ import { store } from '@/routes/register';
 export default function Register() {
     const [step, setStep] = useState(1);
     const [role, setRole] = useState<'job_seeker' | 'employer' | ''>('');
+    const [employerType, setEmployerType] = useState<'basic' | 'company' | ''>('');
 
     return (
         <AuthLayout
@@ -197,6 +198,9 @@ export default function Register() {
                                             <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">Experience (years)</Label>
                                             <Input 
                                                 name="experience_years" 
+                                                type="number"
+                                                min={0}
+                                                max={20}
                                                 placeholder="e.g. 2" 
                                                 className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                                             />
@@ -227,6 +231,70 @@ export default function Register() {
 
                                 {role === 'employer' && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="col-span-1 md:col-span-2 space-y-1.5">
+                                            <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">Employer Type</Label>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEmployerType('basic')}
+                                                    className={`rounded-lg border-2 px-4 py-3 text-left transition-all ${
+                                                        employerType === 'basic'
+                                                            ? 'border-purple-500 bg-purple-50'
+                                                            : 'border-slate-200 hover:border-purple-300'
+                                                    }`}
+                                                >
+                                                    <p className="text-sm font-semibold text-slate-900">Basic Employer</p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">Individual or sole proprietor</p>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEmployerType('company')}
+                                                    className={`rounded-lg border-2 px-4 py-3 text-left transition-all ${
+                                                        employerType === 'company'
+                                                            ? 'border-purple-500 bg-purple-50'
+                                                            : 'border-slate-200 hover:border-purple-300'
+                                                    }`}
+                                                >
+                                                    <p className="text-sm font-semibold text-slate-900">Company</p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">Registered business entity</p>
+                                                </button>
+                                            </div>
+                                            <input type="hidden" name="employer_type" value={employerType} />
+                                            <InputError message={errors.employer_type} />
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                                                National ID (FAN) <span className="text-red-500">*</span>
+                                            </Label>
+                                            <Input 
+                                                name="national_id" 
+                                                required
+                                                inputMode="numeric"
+                                                pattern="\d{16}"
+                                                minLength={16}
+                                                maxLength={16}
+                                                placeholder="16-digit FAN number" 
+                                                className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                                            />
+                                            <InputError message={errors.national_id} />
+                                        </div>
+
+                                        {employerType === 'company' && (
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                                                    TIN Number <span className="text-red-500">*</span>
+                                                </Label>
+                                                <Input 
+                                                    name="company_tin_number" 
+                                                    required
+                                                    placeholder="Tax identification number" 
+                                                    className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                                                />
+                                                <InputError message={errors.company_tin_number} />
+                                            </div>
+                                        )}
+
                                         <div className="space-y-1.5">
                                             <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">Company Name</Label>
                                             <Input 

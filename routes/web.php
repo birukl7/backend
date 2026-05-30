@@ -104,7 +104,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/cv',              [CvController::class, 'index'])->name('cv.index');
     Route::post('/cv',             [CvController::class, 'store'])->name('cv.store');
+    Route::post('/cv/upload',      [CvController::class, 'upload'])->name('cv.upload');
     Route::get('/cv/{id}',         [CvController::class, 'show'])->name('cv.show');
+    Route::get('/cv/{id}/download', [CvController::class, 'download'])->name('cv.download');
     Route::put('/cv/{id}',         [CvController::class, 'update'])->name('cv.update');
     Route::delete('/cv/{id}',      [CvController::class, 'destroy'])->name('cv.destroy');
 
@@ -152,13 +154,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Lives here (not api.php) so the web session resolves auth()->user() correctly.
     Route::get('/api/vacancies/{vacancy}/preview', function (\App\Models\Vacancy $vacancy) {
         $userId = auth()->id();
+        $hasApplied = \App\Models\Application::where('user_id', $userId)
+            ->where('vacancy_id', $vacancy->id)
+            ->exists();
+
+        if ($vacancy->is_expired && ! $hasApplied) {
+            abort(404);
+        }
+
+        $vacancy->load('employer:id,name,company_name,employer_verification_status,company_verification_status');
+
         return response()->json([
             'vacancy'     => $vacancy,
-            'has_applied' => \App\Models\Application::where('user_id', $userId)
-                                 ->where('vacancy_id', $vacancy->id)
-                                 ->exists(),
+            'has_applied' => $hasApplied,
             'user_cvs'    => \App\Models\Cv::where('user_id', $userId)
-                                 ->select('id', 'title', 'full_name', 'is_default')
+                                 ->select('id', 'title', 'full_name', 'is_default', 'source', 'original_filename')
                                  ->get(),
         ]);
     })->name('api.vacancy.preview');

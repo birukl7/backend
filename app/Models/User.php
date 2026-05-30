@@ -28,6 +28,26 @@ use Spatie\Permission\Traits\HasRoles;
     'company_name',
     'company_description',
     'company_website',
+    'employer_type',
+    'national_id',
+    'company_tin_number',
+    'employer_verification_status',
+    'employer_submitted_at',
+    'employer_verified_at',
+    'employer_verified_by',
+    'employer_verification_notes',
+    'company_phone',
+    'company_contact_email',
+    'company_verification_status',
+    'business_license_status',
+    'business_license_path',
+    'kyc_verified',
+    'tin_verified',
+    'company_info_verified',
+    'company_verification_notes',
+    'company_submitted_at',
+    'company_verified_at',
+    'company_verified_by',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
@@ -52,6 +72,13 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
+            'employer_submitted_at' => 'datetime',
+            'employer_verified_at' => 'datetime',
+            'company_submitted_at' => 'datetime',
+            'company_verified_at' => 'datetime',
+            'kyc_verified' => 'boolean',
+            'tin_verified' => 'boolean',
+            'company_info_verified' => 'boolean',
         ];
     }
 

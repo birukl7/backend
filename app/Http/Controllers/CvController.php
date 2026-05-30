@@ -8,6 +8,7 @@ use App\Models\CvEducation;
 use App\Models\CvSkill;
 use App\Models\CvProject;
 use App\Services\AiCvSummaryService;
+use App\Support\PhpIniSize;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -47,6 +48,7 @@ class CvController extends Controller
             'user_id'       => auth()->id(),
             'title'         => $data['title'],
             'template'      => $data['template'] ?? 'classic',
+            'source'        => 'builder',
             'is_default'    => false,
             'section_order' => ['experience', 'education', 'skills', 'projects'],
         ]);
@@ -54,11 +56,61 @@ class CvController extends Controller
         return redirect()->route('cv.show', $cv->id);
     }
 
+    public function upload(Request $request)
+    {
+        $maxKb = max(PhpIniSize::uploadMaxKilobytes(), 5120);
+
+        $data = $request->validate([
+            'file'  => ['required', 'file', 'max:'.$maxKb],
+            'title' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $file = $request->file('file');
+        $extension = strtolower($file->getClientOriginalExtension());
+
+        if (! in_array($extension, ['pdf', 'docx'], true)) {
+            return back()->withErrors([
+                'file' => 'The CV must be a PDF or DOCX file.',
+            ]);
+        }
+
+        $path = $file->store('cv-uploads', 'public');
+        $title = $data['title'] ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+
+        Cv::create([
+            'user_id'           => auth()->id(),
+            'title'             => $title,
+            'source'            => 'upload',
+            'file_path'         => $path,
+            'original_filename' => $file->getClientOriginalName(),
+            'mime_type'         => $file->getMimeType(),
+            'is_default'        => ! Cv::where('user_id', auth()->id())->exists(),
+        ]);
+
+        return redirect()->route('cv.index')->with('success', 'CV uploaded successfully.');
+    }
+
+    public function download($id)
+    {
+        $cv = Cv::where('user_id', auth()->id())->findOrFail($id);
+
+        abort_if($cv->source !== 'upload' || ! $cv->file_path, 404);
+
+        return Storage::disk('public')->download(
+            $cv->file_path,
+            $cv->original_filename ?? 'cv.pdf'
+        );
+    }
+
     public function show($id)
     {
         $cv = Cv::with(['experiences', 'educations', 'skills', 'projects'])
             ->where('user_id', auth()->id())
             ->findOrFail($id);
+
+        if ($cv->source === 'upload') {
+            return redirect()->route('cv.download', $cv->id);
+        }
 
         return Inertia::render('CV/show', ['cv' => $cv]);
     }
@@ -93,6 +145,10 @@ class CvController extends Controller
 
         if ($cv->photo_path) {
             Storage::disk('public')->delete($cv->photo_path);
+        }
+
+        if ($cv->file_path) {
+            Storage::disk('public')->delete($cv->file_path);
         }
 
         $cv->delete();

@@ -18,7 +18,7 @@ class AiMatchController extends Controller
     public function match(Request $request)
     {
         $user      = $request->user();
-        $vacancies = Vacancy::where('status', 'open')
+        $vacancies = Vacancy::active()
             ->select('id', 'title', 'description', 'requirements')
             ->get()
             ->toArray();

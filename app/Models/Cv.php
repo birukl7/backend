@@ -9,13 +9,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Cv extends Model
 {
     protected $fillable = [
-        'user_id', 'title', 'is_default',
+        'user_id', 'title', 'is_default', 'source',
+        'file_path', 'original_filename', 'mime_type',
         'full_name', 'email', 'phone', 'location', 'website', 'linkedin', 'github', 'summary',
         'template', 'accent_color', 'section_order', 'photo_path',
         'ai_summary', 'ai_suggestions', 'ai_improvements', 'ai_strength_score', 'ai_summary_generated_at',
     ];
 
-    protected $appends = ['photo_url'];
+    protected $appends = ['photo_url', 'file_url'];
 
     protected $casts = [
         'is_default'              => 'boolean',
@@ -29,6 +30,16 @@ class Cv extends Model
     public function getPhotoUrlAttribute(): ?string
     {
         return $this->photo_path ? asset('storage/' . $this->photo_path) : null;
+    }
+
+    public function getFileUrlAttribute(): ?string
+    {
+        return $this->file_path ? asset('storage/' . $this->file_path) : null;
+    }
+
+    public function isUpload(): bool
+    {
+        return $this->source === 'upload';
     }
 
     public function user(): BelongsTo

@@ -2,6 +2,7 @@ import { usePage, useForm, router, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import ScreeningChat from '@/components/screening-chat';
 import { DashboardWelcome } from '@/components/dashboard-welcome';
+import { VerificationBadges } from '@/components/verification-badges';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,8 @@ interface Vacancy {
         name: string;
         company_name: string | null;
         company_website: string | null;
+        employer_verification_status?: string | null;
+        company_verification_status?: string | null;
     } | null;
 }
 
@@ -53,6 +56,8 @@ interface UserCv {
     title: string;
     full_name: string | null;
     is_default: boolean;
+    source?: 'builder' | 'upload';
+    original_filename?: string | null;
 }
 
 interface AuthUser {
@@ -411,8 +416,7 @@ function ApplyDialog({
                                             No CVs found
                                         </p>
                                         <p className="mb-5 text-[13px] text-slate-400">
-                                            You need to create a CV before
-                                            applying
+                                            Create or upload a CV before applying
                                         </p>
                                         <a
                                             href="/cv"
@@ -474,8 +478,18 @@ function ApplyDialog({
                                                                 {cv.full_name}
                                                             </p>
                                                         )}
+                                                        {cv.source === 'upload' && cv.original_filename && (
+                                                            <p className="mt-0.5 text-[11px] text-slate-400">
+                                                                {cv.original_filename}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     <div className="flex shrink-0 items-center gap-2">
+                                                        {cv.source === 'upload' && (
+                                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                                                                UPLOAD
+                                                            </span>
+                                                        )}
                                                         {cv.is_default && (
                                                             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
                                                                 DEFAULT
@@ -1268,6 +1282,14 @@ function JobDrawer({
                                 <h2 className="text-xl leading-snug font-bold text-slate-900">
                                     {vacancy.title}
                                 </h2>
+                                {vacancy.employer?.company_name && (
+                                    <p className="mt-1 text-sm font-medium text-slate-600">
+                                        {vacancy.employer.company_name}
+                                    </p>
+                                )}
+                                <div className="mt-2">
+                                    <VerificationBadges employer={vacancy.employer} />
+                                </div>
                                 {vacancy.location && (
                                     <p className="mt-1 flex items-center gap-1 text-sm text-slate-400">
                                         <svg
@@ -1509,6 +1531,12 @@ function JobCard({
                         <h3 className="truncate text-[15px] leading-snug font-semibold text-slate-900 transition-colors group-hover:text-blue-600">
                             {vacancy.title}
                         </h3>
+                        {vacancy.employer?.company_name && (
+                            <p className="mt-0.5 truncate text-[12px] font-medium text-slate-500">
+                                {vacancy.employer.company_name}
+                            </p>
+                        )}
+                        <VerificationBadges employer={vacancy.employer} />
                         {vacancy.location && (
                             <p className="mt-0.5 flex items-center gap-1 text-[12px] text-slate-400">
                                 <svg

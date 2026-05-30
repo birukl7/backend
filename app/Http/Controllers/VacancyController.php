@@ -48,7 +48,7 @@ class VacancyController extends Controller
         $vacancies = Vacancy::active()
             ->with([
                 'screening:id,vacancy_id,is_enabled',
-                'employer:id,name,company_name,company_website,created_at',
+                'employer:id,name,company_name,company_website,created_at,employer_verification_status,company_verification_status',
             ])
             ->latest()
             ->get();
@@ -94,7 +94,7 @@ class VacancyController extends Controller
             'is_authenticated' => true,
             'applied_ids'      => Application::where('user_id', $userId)->pluck('vacancy_id'),
             'user_cvs'         => Cv::where('user_id', $userId)
-                                     ->select('id', 'title', 'full_name', 'is_default')
+                                     ->select('id', 'title', 'full_name', 'is_default', 'source', 'original_filename')
                                      ->get(),
             'ai_matches'       => $aiMatches,
             'sidebar_stats'    => [

@@ -132,7 +132,7 @@ function formatSalary(min: string | null, max: string | null): string {
     const fmt = (v: string) =>
         new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: 'USD',
+            currency: 'ETB',
             maximumFractionDigits: 0,
         }).format(parseFloat(v));
     if (min && max) return `${fmt(min)} – ${fmt(max)}`;
@@ -152,6 +152,14 @@ function timeAgo(dateStr: string): string {
 
 function daysUntil(dateStr: string): number {
     return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+}
+
+function deadlineLabel(deadline: number | null, isExpired: boolean): string {
+    if (isExpired) return 'Expired';
+    if (deadline === null) return 'No deadline';
+    if (deadline === 0) return 'Closes today';
+    if (deadline === 1) return '1 day left';
+    return `${deadline} days left`;
 }
 
 function initials(name: string): string {
@@ -1053,9 +1061,14 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                                             <span
                                                 className={`h-1.5 w-1.5 rounded-full ${!vacancy.is_expired ? 'bg-emerald-500' : 'bg-slate-400'}`}
                                             />
-                                            {!vacancy.is_expired
-                                                ? 'Open'
-                                                : 'Expired'}
+                                            {deadlineLabel(
+                                                vacancy.application_deadline
+                                                    ? daysUntil(
+                                                          vacancy.application_deadline,
+                                                      )
+                                                    : null,
+                                                vacancy.is_expired ?? false,
+                                            )}
                                         </span>
                                         <span
                                             className={`rounded-full border px-3 py-1.5 text-[12px] font-medium ${WORK_TYPE_COLORS[vacancy.work_type]}`}
@@ -1319,7 +1332,7 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <Label>Salary Min (USD)</Label>
+                                        <Label>Salary Min (BIRR)</Label>
                                         <input
                                             type="number"
                                             className={inp2col}
@@ -1336,7 +1349,7 @@ function JobDialog({ mode, vacancy, onClose }: DialogProps) {
                                         <FieldErr msg={errors.salary_min} />
                                     </div>
                                     <div>
-                                        <Label>Salary Max (USD)</Label>
+                                        <Label>Salary Max (BIRR)</Label>
                                         <input
                                             type="number"
                                             className={inp2col}
@@ -1599,7 +1612,7 @@ function JobRow({
                     <span
                         className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${!isExpired ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-slate-200 bg-slate-100 text-slate-400'}`}
                     >
-                        {!isExpired ? '● OPEN' : 'EXPIRED'}
+                        {deadlineLabel(deadline, isExpired)}
                     </span>
                     {(vacancy.hires_count ?? 0) > 0 && (
                         <span className="shrink-0 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-600">
@@ -1652,8 +1665,10 @@ function JobRow({
                         {isExpired
                             ? 'Expired'
                             : deadline === 0
-                              ? 'Today'
-                              : `${deadline}d left`}
+                              ? 'Closes today'
+                              : deadline === 1
+                                ? '1 day left'
+                                : `${deadline} days left`}
                     </p>
                 ) : (
                     <p className="text-[12px] text-slate-300">No deadline</p>
@@ -1806,12 +1821,13 @@ export default function EmployerJobsIndex({ vacancies, hiring_stats }: Props) {
                                 <button
                                     key={s}
                                     onClick={() => setFilterStatus(s)}
-                                    className={`rounded-lg px-3.5 py-1.5 text-[12px] font-medium capitalize transition-colors ${filterStatus === s ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`rounded-lg px-3.5 py-1.5 text-[12px] font-medium transition-colors ${filterStatus === s ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     {s === 'all'
-                                        ? 'All'
-                                        : s.charAt(0).toUpperCase() +
-                                          s.slice(1)}
+                                        ? 'All Jobs'
+                                        : s === 'active'
+                                          ? 'Active Jobs'
+                                          : 'Expired Jobs'}
                                 </button>
                             ),
                         )}
@@ -1875,7 +1891,7 @@ export default function EmployerJobsIndex({ vacancies, hiring_stats }: Props) {
                                 Salary
                             </div>
                             <div className="hidden text-right md:block">
-                                Deadline
+                                Days remaining
                             </div>
                             <div />
                         </div>
