@@ -121,7 +121,7 @@ class CvController extends Controller
             return redirect()->route('cv.download', $cv->id);
         }
 
-        return Inertia::render('CV/show', ['cv' => $cv]);
+        return Inertia::render('CV/Show', ['cv' => $cv]);
     }
 
     public function update(Request $request, $id)

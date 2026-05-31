@@ -942,7 +942,7 @@ function ProfileSidebar({
                     <div className="mt-3">
                         <div className="mb-1 flex items-center justify-between">
                             <Link
-                                href="/cv/create"
+                                href="/cv"
                                 className="text-[11px] text-slate-500 underline underline-offset-2 transition-colors hover:text-slate-700"
                             >
                                 {profileCompletion < 100
