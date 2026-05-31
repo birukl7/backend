@@ -58,21 +58,30 @@ class CvController extends Controller
 
     public function upload(Request $request)
     {
-        $maxKb = max(PhpIniSize::uploadMaxKilobytes(), 5120);
+        \Illuminate\Support\Facades\Log::debug('CV Upload debug', [
+            'content_type' => $request->header('Content-Type'),
+            'has_file'     => $request->hasFile('file'),
+            'files_raw'    => $_FILES,
+            'input_keys'   => array_keys($request->all()),
+        ]);
+
+        // If PHP silently dropped the file (upload exceeded upload_max_filesize),
+        // hasFile returns false even though the field was submitted.
+        if (! $request->hasFile('file') && $request->isMethod('post')) {
+            $maxLabel = PhpIniSize::uploadMaxLabel();
+            return back()->withErrors([
+                'file' => "The file could not be received by the server. Make sure it is under {$maxLabel}.",
+            ]);
+        }
+
+        $maxKb = max(PhpIniSize::uploadMaxKilobytes(), 20480);
 
         $data = $request->validate([
-            'file'  => ['required', 'file', 'max:'.$maxKb],
+            'file'  => ['required', 'file', 'max:'.$maxKb, 'mimes:pdf,docx'],
             'title' => ['nullable', 'string', 'max:120'],
         ]);
 
         $file = $request->file('file');
-        $extension = strtolower($file->getClientOriginalExtension());
-
-        if (! in_array($extension, ['pdf', 'docx'], true)) {
-            return back()->withErrors([
-                'file' => 'The CV must be a PDF or DOCX file.',
-            ]);
-        }
 
         $path = $file->store('cv-uploads', 'public');
         $title = $data['title'] ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);

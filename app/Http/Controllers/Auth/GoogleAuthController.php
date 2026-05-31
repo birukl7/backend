@@ -38,7 +38,13 @@ class GoogleAuthController extends Controller
      */
     public function callback(Request $request): RedirectResponse
     {
-        $googleUser = Socialite::driver('google')->user();
+        try {
+            $googleUser = Socialite::driver('google')->user();
+        } catch (\Throwable $e) {
+            return redirect()->route('login')->withErrors([
+                'email' => 'Google authentication failed. Please try again.',
+            ]);
+        }
 
         $user = User::query()
             ->where('google_id', $googleUser->getId())
@@ -48,10 +54,9 @@ class GoogleAuthController extends Controller
         if ($user === null) {
             $roleName = $request->session()->pull('oauth_role', 'job_seeker');
 
-            $role = Role::query()
-                ->where('name', $roleName)
-                ->where('guard_name', 'web')
-                ->firstOrFail();
+            $role = Role::firstOrCreate(
+                ['name' => $roleName, 'guard_name' => 'web'],
+            );
 
             $user = User::create([
                 'name' => $googleUser->getName() ?? 'Google User',
