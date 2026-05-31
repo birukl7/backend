@@ -63,7 +63,6 @@ class GoogleAuthController extends Controller
                 'email' => $googleUser->getEmail(),
                 'google_id' => $googleUser->getId(),
                 'password' => null,
-                'email_verified_at' => now(),
                 'profile_photo' => $this->storeGoogleAvatar($googleUser->getAvatar()),
             ]);
 
@@ -71,7 +70,6 @@ class GoogleAuthController extends Controller
         } else {
             $user->forceFill([
                 'google_id' => $user->google_id ?? $googleUser->getId(),
-                'email_verified_at' => $user->email_verified_at ?? now(),
             ]);
 
             if (! $user->name && $googleUser->getName()) {
@@ -83,6 +81,10 @@ class GoogleAuthController extends Controller
             }
 
             $user->save();
+        }
+
+        if (! $user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
         }
 
         Auth::login($user, remember: true);
