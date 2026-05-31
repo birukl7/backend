@@ -1,9 +1,10 @@
 import AppLayout from "@/layouts/app-layout";
-import { Head, router, useForm } from "@inertiajs/react";
+import { Head, router, useForm, usePage } from "@inertiajs/react";
 import { MessageSquare } from "lucide-react";
 import { useState } from "react";
 import ScreeningReport, { ScreeningResponseData } from "@/components/screening-report";
 import EmployerCvBrief from "@/components/employer-cv-brief";
+import HireReviewForm from "@/components/hire-review-form";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,15 @@ interface Interview {
     id: number; scheduled_at: string; status: string; notes: string | null; meeting_link: string;
 }
 
+interface HireReview {
+    id: number;
+    rating: number;
+    comment: string | null;
+    created_at: string;
+    reviewer_id: number;
+    reviewer?: { id: number; name: string };
+}
+
 interface Application {
     id: number; status: AppStatus; cover_letter: string | null; created_at: string;
     vacancy: { id: number; title: string; location: string | null; work_type: string; employment_type: string; };
@@ -38,6 +48,7 @@ interface Application {
     cv: Cv;
     interview: Interview | null;
     screening_response?: ScreeningResponseData | null;
+    hire_reviews?: HireReview[];
 }
 
 interface Props { applications: Application[]; }
@@ -77,6 +88,11 @@ function CvPreviewDrawer({ app, onClose, onSchedule, onReschedule }: {
     const cv = app.cv;
     const accent = "#2563eb";
     const [showChat, setShowChat] = useState(false);
+    const { auth } = usePage<{ auth: { user: { id: number } } }>().props;
+    const userId = auth.user.id;
+    const reviews = app.hire_reviews ?? [];
+    const myReview = reviews.find((r) => r.reviewer_id === userId);
+    const theirReview = reviews.find((r) => r.reviewer_id !== userId);
 
     return (
         <>
@@ -117,6 +133,30 @@ function CvPreviewDrawer({ app, onClose, onSchedule, onReschedule }: {
                         <div className="mb-5 bg-amber-50 border border-amber-100 rounded-2xl px-5 py-4">
                             <p className="text-[11px] font-bold text-amber-600 uppercase tracking-widest mb-2">Cover Letter</p>
                             <p className="text-sm text-amber-800 leading-relaxed whitespace-pre-line">{app.cover_letter}</p>
+                        </div>
+                    )}
+
+                    {app.status === "hired" && (
+                        <div className="mb-5 space-y-3">
+                            <HireReviewForm
+                                applicationId={app.id}
+                                existingReview={myReview}
+                                revieweeLabel={app.user.name}
+                            />
+                            {theirReview && (
+                                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                                        Candidate feedback
+                                    </p>
+                                    <p className="mt-1 text-[12px] text-amber-600">
+                                        {'★'.repeat(theirReview.rating)}{'☆'.repeat(5 - theirReview.rating)}
+                                        {' '}({theirReview.rating}/5)
+                                    </p>
+                                    {theirReview.comment && (
+                                        <p className="mt-1 text-[13px] text-slate-600">{theirReview.comment}</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 

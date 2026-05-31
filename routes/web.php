@@ -5,8 +5,10 @@ use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\HireReviewController;
 use App\Http\Controllers\HiringStatsController;
 use App\Http\Controllers\QuizController;
+use App\Http\Controllers\SavedJobController;
 use App\Http\Controllers\ScreeningController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -49,8 +51,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 // ── Job seeker ────────────────────────────────────────────────────────────
     Route::get('/my-applications',  [ApplicationController::class, 'index'])->name('applications.index');
+    Route::get('/saved-jobs',       [SavedJobController::class, 'index'])->name('saved-jobs.index');
+    Route::post('/saved-jobs/{vacancy}', [SavedJobController::class, 'store'])->name('saved-jobs.store');
+    Route::delete('/saved-jobs/{vacancy}', [SavedJobController::class, 'destroy'])->name('saved-jobs.destroy');
     Route::post('/applications',    [ApplicationController::class, 'store'])->name('applications.store');
     Route::delete('/applications/{application}', [ApplicationController::class, 'destroy'])->name('applications.destroy');
+    Route::post('/applications/{application}/review', [HireReviewController::class, 'store'])->name('applications.review');
 
     Route::get('/my-interviews',    [InterviewController::class, 'jobSeekerIndex'])->name('interviews.index');
     Route::delete('/interviews/{interview}', [InterviewController::class, 'destroy'])->name('interviews.destroy');
@@ -162,7 +168,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             abort(404);
         }
 
-        $vacancy->load('employer:id,name,company_name,employer_verification_status,company_verification_status');
+        $vacancy->load('employer:id,name,company_name,employer_type,employer_verification_status,company_verification_status');
 
         return response()->json([
             'vacancy'     => $vacancy,

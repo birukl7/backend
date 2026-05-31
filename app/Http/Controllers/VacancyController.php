@@ -8,6 +8,7 @@ use App\Models\Application;
 use App\Models\Cv;
 use App\Models\Interview;
 use App\Models\JobScreening;
+use App\Models\Shortlist;
 use App\Models\Vacancy;
 use App\Services\AiMatchingService;
 use App\Services\AiScreeningService;
@@ -48,7 +49,7 @@ class VacancyController extends Controller
         $vacancies = Vacancy::active()
             ->with([
                 'screening:id,vacancy_id,is_enabled',
-                'employer:id,name,company_name,company_website,created_at,employer_verification_status,company_verification_status',
+                'employer:id,name,company_name,company_website,created_at,employer_type,employer_verification_status,company_verification_status',
             ])
             ->latest()
             ->get();
@@ -72,6 +73,7 @@ class VacancyController extends Controller
                 'vacancies'          => $vacancies,
                 'is_authenticated'   => false,
                 'applied_ids'        => [],
+                'saved_ids'          => [],
                 'user_cvs'           => [],
                 'ai_matches'         => [],
                 'sidebar_stats'      => null,
@@ -93,6 +95,7 @@ class VacancyController extends Controller
             'vacancies'        => $vacancies,
             'is_authenticated' => true,
             'applied_ids'      => Application::where('user_id', $userId)->pluck('vacancy_id'),
+            'saved_ids'        => Shortlist::where('user_id', $userId)->pluck('vacancy_id'),
             'user_cvs'         => Cv::where('user_id', $userId)
                                      ->select('id', 'title', 'full_name', 'is_default', 'source', 'original_filename')
                                      ->get(),
@@ -105,6 +108,7 @@ class VacancyController extends Controller
                                        ->distinct('assessment_id')
                                        ->count('assessment_id'),
                 'cvs_count'     => Cv::where('user_id', $userId)->count(),
+                'saved'         => Shortlist::where('user_id', $userId)->count(),
             ],
             'profile_completion' => $this->profileCompletion($userId),
         ]);

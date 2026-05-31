@@ -11,16 +11,26 @@ class AiMatchingService
 {
     private string $baseUrl;
 
-    public function __construct()
+    public function __construct(private CvTextExtractorService $extractor)
     {
         $this->baseUrl = config('services.ai_matching.url', 'http://localhost:8001');
     }
 
     /**
-     * Build a single plain-text blob from all CV sections.
+     * Build a single plain-text blob from all CV sections (builder) or extracted
+     * upload content (PDF/DOCX).
      */
     public function buildResumeText(Cv $cv): string
     {
+        $uploadText = $this->extractor->textForCv($cv);
+
+        if ($uploadText !== null) {
+            $parts = [$uploadText];
+            $this->appendVerifiedSkills($cv, $parts);
+
+            return implode('. ', array_filter($parts));
+        }
+
         $parts = [];
 
         if ($cv->summary) {
@@ -51,6 +61,14 @@ class AiMatchingService
             if ($proj->tech_stack) $parts[] = $proj->tech_stack;
         }
 
+        $this->appendVerifiedSkills($cv, $parts);
+
+        return implode('. ', array_filter($parts));
+    }
+
+    /** @param list<string> $parts */
+    private function appendVerifiedSkills(Cv $cv, array &$parts): void
+    {
         // Quiz-verified skills — repeated 3× for higher vector weight in the embedding
         $verifiedSkills = \App\Models\AssessmentResult::where('assessment_results.user_id', $cv->user_id)
             ->where('assessment_results.passed', true)
@@ -66,8 +84,6 @@ class AiMatchingService
             $parts[] = "{$vs->skill_name} verified skill certificate";
             $parts[] = "{$vs->category} certified: {$vs->skill_name}";
         }
-
-        return implode('. ', array_filter($parts));
     }
 
     /**
@@ -126,12 +142,18 @@ class AiMatchingService
      */
     public function matchForUser(int $userId, array $vacancies): array
     {
+        if (! Cv::where('user_id', $userId)->exists()) {
+            AiMatch::where('user_id', $userId)->delete();
+
+            return [];
+        }
+
         // ── Serve from cache when available (instant, zero network cost) ──────
         $cached = AiMatch::where('user_id', $userId)
             ->pluck('match_score', 'vacancy_id')
             ->toArray();
 
-        if (!empty($cached)) {
+        if (! empty($cached)) {
             return $cached;
         }
 

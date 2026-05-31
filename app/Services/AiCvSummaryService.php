@@ -13,7 +13,7 @@ class AiCvSummaryService
     private string $model;
     private bool   $configured;
 
-    public function __construct()
+    public function __construct(private CvTextExtractorService $extractor)
     {
         // Prefer Groq (free & fast); fall back to OpenAI
         if ($key = config('services.groq.key')) {
@@ -153,6 +153,17 @@ PROMPT;
 
     private function cvToText(Cv $cv): string
     {
+        $uploadText = $this->extractor->textForCv($cv);
+
+        if ($uploadText !== null) {
+            $header = 'UPLOADED CV';
+            if ($cv->title) {
+                $header .= " ({$cv->title})";
+            }
+
+            return "{$header}:\n{$uploadText}";
+        }
+
         $cv->loadMissing(['experiences', 'educations', 'skills', 'projects']);
 
         $lines = [];

@@ -10,7 +10,7 @@ class Cv extends Model
 {
     protected $fillable = [
         'user_id', 'title', 'is_default', 'source',
-        'file_path', 'original_filename', 'mime_type',
+        'file_path', 'original_filename', 'mime_type', 'extracted_text', 'extracted_at',
         'full_name', 'email', 'phone', 'location', 'website', 'linkedin', 'github', 'summary',
         'template', 'accent_color', 'section_order', 'photo_path',
         'ai_summary', 'ai_suggestions', 'ai_improvements', 'ai_strength_score', 'ai_summary_generated_at',
@@ -25,6 +25,7 @@ class Cv extends Model
         'ai_improvements'         => 'array',
         'ai_strength_score'       => 'integer',
         'ai_summary_generated_at' => 'datetime',
+        'extracted_at'            => 'datetime',
     ];
 
     public function getPhotoUrlAttribute(): ?string

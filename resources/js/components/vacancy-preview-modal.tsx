@@ -39,6 +39,7 @@ interface Vacancy {
         id: number;
         name: string;
         company_name: string | null;
+        employer_type?: 'basic' | 'company' | null;
         employer_verification_status?: string | null;
         company_verification_status?: string | null;
     } | null;

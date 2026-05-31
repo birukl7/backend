@@ -1,5 +1,6 @@
 import {
     BarChart3,
+    Bookmark,
     Briefcase,
     Calendar,
     FileText,
@@ -54,6 +55,11 @@ export const jobSeekerNavItems: NavItem[] = [
         title: 'Jobs',
         href: '/jobs',
         icon: Briefcase,
+    },
+    {
+        title: 'Saved Jobs',
+        href: '/saved-jobs',
+        icon: Bookmark,
     },
     {
         title: 'My CVs',

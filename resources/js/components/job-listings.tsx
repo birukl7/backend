@@ -2,7 +2,7 @@ import { usePage, useForm, router, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import ScreeningChat from '@/components/screening-chat';
 import { DashboardWelcome } from '@/components/dashboard-welcome';
-import { VerificationBadges } from '@/components/verification-badges';
+import { VerificationBadges, isEmployerVerified } from '@/components/verification-badges';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +46,7 @@ interface Vacancy {
         name: string;
         company_name: string | null;
         company_website: string | null;
+        employer_type?: 'basic' | 'company' | null;
         employer_verification_status?: string | null;
         company_verification_status?: string | null;
     } | null;
@@ -72,16 +73,19 @@ interface SidebarStats {
     interviews: number;
     skills_earned: number;
     cvs_count: number;
+    saved?: number;
 }
 
 interface Props {
     vacancies: Vacancy[];
     applied_ids?: number[];
+    saved_ids?: number[];
     user_cvs?: UserCv[];
     ai_matches?: Record<number, number>; // vacancy_id -> score (0.0 – 1.0)
     sidebar_stats?: SidebarStats | null;
     profile_completion?: number; // 0–100
     is_authenticated?: boolean;
+    pageMode?: 'board' | 'saved';
 }
 
 // ─── Label maps ───────────────────────────────────────────────────────────────
@@ -138,6 +142,18 @@ function timeAgo(dateStr: string): string {
 
 function daysUntil(dateStr: string): number {
     return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+}
+
+function salaryMinValue(min: string | null, max: string | null): number | null {
+    if (min) return parseFloat(min);
+    if (max) return parseFloat(max);
+    return null;
+}
+
+function salaryMaxValue(min: string | null, max: string | null): number | null {
+    if (max) return parseFloat(max);
+    if (min) return parseFloat(min);
+    return null;
 }
 
 // ─── Apply Dialog ─────────────────────────────────────────────────────────────
@@ -1042,6 +1058,27 @@ function ProfileSidebar({
                                 <path
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
+                                    d="M2.5 2.5h11v12l-5.5-3-5.5 3z"
+                                />
+                            </svg>
+                        ),
+                        label: 'Saved Jobs',
+                        sub: 'Roles you bookmarked',
+                        href: '/saved-jobs',
+                        color: 'text-amber-600 bg-amber-50',
+                    },
+                    {
+                        icon: (
+                            <svg
+                                className="h-4 w-4"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
                                     d="M2 12h12M2 8h12M2 4h8"
                                 />
                             </svg>
@@ -1230,14 +1267,20 @@ function JobDrawer({
     vacancy,
     hasApplied,
     isAuthenticated,
+    isSaved,
+    savingBookmark,
     onClose,
     onApply,
+    onToggleSave,
 }: {
     vacancy: Vacancy;
     hasApplied: boolean;
     isAuthenticated: boolean;
+    isSaved: boolean;
+    savingBookmark: boolean;
     onClose: () => void;
     onApply: () => void;
+    onToggleSave: () => void;
 }) {
     const salary = formatSalary(vacancy.salary_min, vacancy.salary_max);
     const deadline = vacancy.application_deadline
@@ -1474,21 +1517,37 @@ function JobDrawer({
                             </svg>
                         </button>
                     )}
-                    <button className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600">
-                        <svg
-                            className="h-4 w-4"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
+                    {isAuthenticated && (
+                        <button
+                            type="button"
+                            onClick={onToggleSave}
+                            disabled={savingBookmark}
+                            title={
+                                isSaved
+                                    ? 'Remove from saved jobs'
+                                    : 'Save job for later'
+                            }
+                            className={`flex h-12 w-12 items-center justify-center rounded-xl border transition-colors disabled:opacity-50 ${
+                                isSaved
+                                    ? 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100'
+                                    : 'border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                            }`}
                         >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M2.5 2.5h11v12l-5.5-3-5.5 3z"
-                            />
-                        </svg>
-                    </button>
+                            <svg
+                                className="h-4 w-4"
+                                viewBox="0 0 16 16"
+                                fill={isSaved ? 'currentColor' : 'none'}
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M2.5 2.5h11v12l-5.5-3-5.5 3z"
+                                />
+                            </svg>
+                        </button>
+                    )}
                 </div>
             </div>
         </>
@@ -1615,21 +1674,29 @@ function JobCard({
                         {vacancy.requirements}
                     </span>
                 )}
-                {vacancy.employer_stats &&
-                    vacancy.employer_stats.total_hires > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-600">
-                            <svg
-                                className="h-3 w-3"
-                                viewBox="0 0 16 16"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                            >
-                                <path strokeLinecap="round" d="M2 8l4 4 8-8" />
-                            </svg>
-                            {vacancy.employer_stats.total_hires} hired
-                        </span>
-                    )}
+                {vacancy.employer_stats && (
+                    <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                            vacancy.employer_stats.total_hires > 0
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
+                                : 'border-slate-200 bg-slate-50 text-slate-500'
+                        }`}
+                    >
+                        <svg
+                            className="h-3 w-3"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                        >
+                            <path strokeLinecap="round" d="M2 8l4 4 8-8" />
+                        </svg>
+                        {vacancy.employer_stats.total_hires}{' '}
+                        {vacancy.employer_stats.total_hires === 1
+                            ? 'hire'
+                            : 'hires'}
+                    </span>
+                )}
             </div>
 
             {tags.length > 0 && (
@@ -1767,15 +1834,24 @@ function GuestHero({ count }: { count: number }) {
 
 type FilterWorkType = 'all' | Vacancy['work_type'];
 type FilterEmployment = 'all' | Vacancy['employment_type'];
+type FilterDeadline = 'all' | 'urgent' | 'closing_soon';
+type SortOption =
+    | 'newest'
+    | 'salary_high'
+    | 'salary_low'
+    | 'deadline_soon'
+    | 'match_score';
 
 export default function JobListings({
     vacancies,
     applied_ids = [],
+    saved_ids = [],
     user_cvs = [],
     ai_matches = {},
     sidebar_stats,
     profile_completion = 0,
     is_authenticated = true,
+    pageMode = 'board',
 }: Props) {
     const { auth } = usePage<{ auth: { user: AuthUser | null } }>().props;
     const user = auth.user;
@@ -1784,35 +1860,77 @@ export default function JobListings({
     const [search, setSearch] = useState('');
     const [workType, setWorkType] = useState<FilterWorkType>('all');
     const [employment, setEmployment] = useState<FilterEmployment>('all');
-    const [activeTags, setActiveTags] = useState<string[]>([]);
+    const [locationFilter, setLocationFilter] = useState('');
+    const [salaryMin, setSalaryMin] = useState('');
+    const [salaryMax, setSalaryMax] = useState('');
+    const [verifiedOnly, setVerifiedOnly] = useState(false);
+    const [deadlineFilter, setDeadlineFilter] = useState<FilterDeadline>('all');
+    const [minMatchPct, setMinMatchPct] = useState('');
+    const [sortBy, setSortBy] = useState<SortOption>('newest');
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [selected, setSelected] = useState<Vacancy | null>(null);
     const [applying, setApplying] = useState<Vacancy | null>(null);
     const [screening, setScreening] = useState<Vacancy | null>(null);
-    const [activeTab, setActiveTab] = useState<'all' | 'recommended'>('all');
+    const [activeTab, setActiveTab] = useState<
+        'all' | 'recommended' | 'saved'
+    >('all');
 
     // Track applied IDs locally so the UI updates after submission without a full page reload
     const [localAppliedIds, setLocalAppliedIds] =
         useState<number[]>(applied_ids);
 
-    // All unique tags across the board, for the advanced tag filter.
-    const allTags = Array.from(
-        new Set(vacancies.flatMap((v) => v.tags ?? [])),
-    ).sort();
+    const [localSavedIds, setLocalSavedIds] = useState<number[]>(saved_ids);
+    const [savingBookmarkId, setSavingBookmarkId] = useState<number | null>(
+        null,
+    );
 
-    function toggleTag(tag: string) {
-        setActiveTags((prev) =>
-            prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
-        );
-    }
+    const allLocations = Array.from(
+        new Set(
+            vacancies
+                .map((v) => v.location?.trim())
+                .filter((loc): loc is string => Boolean(loc)),
+        ),
+    ).sort();
 
     function matchesFilters(v: Vacancy): boolean {
         if (workType !== 'all' && v.work_type !== workType) return false;
         if (employment !== 'all' && v.employment_type !== employment)
             return false;
-        // Tag filter — vacancy must include every selected tag (AND match).
-        if (activeTags.length > 0) {
-            const vTags = v.tags ?? [];
-            if (!activeTags.every((t) => vTags.includes(t))) return false;
+        if (locationFilter && (v.location ?? '') !== locationFilter) {
+            return false;
+        }
+        if (verifiedOnly && !isEmployerVerified(v.employer)) {
+            return false;
+        }
+        if (deadlineFilter !== 'all' && v.application_deadline) {
+            const days = daysUntil(v.application_deadline);
+            if (deadlineFilter === 'urgent' && (days < 0 || days > 5)) {
+                return false;
+            }
+            if (
+                deadlineFilter === 'closing_soon' &&
+                (days < 0 || days > 14)
+            ) {
+                return false;
+            }
+        } else if (deadlineFilter !== 'all' && !v.application_deadline) {
+            return false;
+        }
+        const filterMin = salaryMin ? parseFloat(salaryMin) : null;
+        const filterMax = salaryMax ? parseFloat(salaryMax) : null;
+        if (filterMin !== null || filterMax !== null) {
+            const vMin = salaryMinValue(v.salary_min, v.salary_max);
+            const vMax = salaryMaxValue(v.salary_min, v.salary_max);
+            if (vMin === null && vMax === null) return false;
+            const effectiveMin = vMin ?? vMax!;
+            const effectiveMax = vMax ?? vMin!;
+            if (filterMin !== null && effectiveMax < filterMin) return false;
+            if (filterMax !== null && effectiveMin > filterMax) return false;
+        }
+        const minMatch = minMatchPct ? parseInt(minMatchPct, 10) / 100 : null;
+        if (minMatch !== null && !Number.isNaN(minMatch)) {
+            const score = ai_matches[v.id] ?? 0;
+            if (score < minMatch) return false;
         }
         if (search.trim()) {
             const q = search.toLowerCase();
@@ -1826,18 +1944,106 @@ export default function JobListings({
         return true;
     }
 
-    const filtered = vacancies.filter(matchesFilters);
+    function sortVacancies(list: Vacancy[]): Vacancy[] {
+        const sorted = [...list];
+        sorted.sort((a, b) => {
+            switch (sortBy) {
+                case 'salary_high': {
+                    const aSal =
+                        salaryMaxValue(a.salary_min, a.salary_max) ?? -1;
+                    const bSal =
+                        salaryMaxValue(b.salary_min, b.salary_max) ?? -1;
+                    return bSal - aSal;
+                }
+                case 'salary_low': {
+                    const aSal =
+                        salaryMinValue(a.salary_min, a.salary_max) ?? Infinity;
+                    const bSal =
+                        salaryMinValue(b.salary_min, b.salary_max) ?? Infinity;
+                    return aSal - bSal;
+                }
+                case 'deadline_soon': {
+                    const aDays = a.application_deadline
+                        ? daysUntil(a.application_deadline)
+                        : Infinity;
+                    const bDays = b.application_deadline
+                        ? daysUntil(b.application_deadline)
+                        : Infinity;
+                    return aDays - bDays;
+                }
+                case 'match_score':
+                    return (
+                        (ai_matches[b.id] ?? 0) - (ai_matches[a.id] ?? 0)
+                    );
+                case 'newest':
+                default:
+                    return (
+                        new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime()
+                    );
+            }
+        });
+        return sorted;
+    }
+
+    const filtered = sortVacancies(vacancies.filter(matchesFilters));
 
     const hasAiMatches = Object.keys(ai_matches).length > 0;
 
     // AI-ranked list: vacancies with score >= 30%, sorted best-first, respects active filters
     const aiRecommended = hasAiMatches
-        ? vacancies
-              .filter((v) => (ai_matches[v.id] ?? 0) >= 0.3 && matchesFilters(v))
-              .sort((a, b) => (ai_matches[b.id] ?? 0) - (ai_matches[a.id] ?? 0))
+        ? sortVacancies(
+              vacancies
+                  .filter(
+                      (v) =>
+                          (ai_matches[v.id] ?? 0) >= 0.3 &&
+                          matchesFilters(v),
+                  ),
+          )
         : [];
 
-    const displayList = activeTab === 'recommended' ? aiRecommended : filtered;
+    const displayList =
+        activeTab === 'recommended'
+            ? aiRecommended
+            : activeTab === 'saved'
+              ? filtered.filter((v) => localSavedIds.includes(v.id))
+              : filtered;
+
+    function toggleSave(vacancyId: number) {
+        if (!isAuthenticated || savingBookmarkId !== null) {
+            return;
+        }
+
+        const currentlySaved = localSavedIds.includes(vacancyId);
+        setSavingBookmarkId(vacancyId);
+
+        if (currentlySaved) {
+            router.delete(`/saved-jobs/${vacancyId}`, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setLocalSavedIds((prev) =>
+                        prev.filter((id) => id !== vacancyId),
+                    );
+                    if (pageMode === 'saved' && selected?.id === vacancyId) {
+                        setSelected(null);
+                    }
+                },
+                onFinish: () => setSavingBookmarkId(null),
+            });
+        } else {
+            router.post(
+                `/saved-jobs/${vacancyId}`,
+                {},
+                {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setLocalSavedIds((prev) => [...prev, vacancyId]);
+                    },
+                    onFinish: () => setSavingBookmarkId(null),
+                },
+            );
+        }
+    }
 
     function openApply(vacancy: Vacancy) {
         // Guests must sign in before applying.
@@ -1902,15 +2108,105 @@ export default function JobListings({
                     <div className="flex items-center justify-between">
                         <div>
                             <h2 className="text-lg font-semibold text-slate-900">
-                                Job board
+                                {pageMode === 'saved' ? 'Saved jobs' : 'Job board'}
                             </h2>
                             <p className="mt-0.5 text-sm text-slate-400">
-                                {activeTab === 'recommended'
-                                    ? 'Sorted by AI match score'
-                                    : 'Search and filter open roles'}
+                                {pageMode === 'saved'
+                                    ? 'Roles you bookmarked to review or apply later'
+                                    : activeTab === 'recommended'
+                                      ? 'Sorted by AI match score'
+                                      : activeTab === 'saved'
+                                        ? 'Your bookmarked roles'
+                                        : 'Search and filter open roles'}
                             </p>
                         </div>
-                        {hasAiMatches && (
+                        {pageMode === 'board' && isAuthenticated && (
+                            <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                                <button
+                                    onClick={() => setActiveTab('all')}
+                                    className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all ${
+                                        activeTab === 'all'
+                                            ? 'bg-slate-900 text-white shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-800'
+                                    }`}
+                                >
+                                    All Jobs
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('saved')}
+                                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all ${
+                                        activeTab === 'saved'
+                                            ? 'bg-amber-500 text-white shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-800'
+                                    }`}
+                                >
+                                    <svg
+                                        className="h-3.5 w-3.5"
+                                        viewBox="0 0 16 16"
+                                        fill={
+                                            activeTab === 'saved'
+                                                ? 'currentColor'
+                                                : 'none'
+                                        }
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M2.5 2.5h11v12l-5.5-3-5.5 3z"
+                                        />
+                                    </svg>
+                                    Saved
+                                    {localSavedIds.length > 0 && (
+                                        <span
+                                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                                activeTab === 'saved'
+                                                    ? 'bg-amber-400 text-white'
+                                                    : 'bg-amber-100 text-amber-700'
+                                            }`}
+                                        >
+                                            {localSavedIds.length}
+                                        </span>
+                                    )}
+                                </button>
+                                {hasAiMatches && (
+                                    <button
+                                        onClick={() =>
+                                            setActiveTab('recommended')
+                                        }
+                                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all ${
+                                            activeTab === 'recommended'
+                                                ? 'bg-violet-600 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-800'
+                                        }`}
+                                    >
+                                        <svg
+                                            className="h-3.5 w-3.5"
+                                            viewBox="0 0 16 16"
+                                            fill="currentColor"
+                                        >
+                                            <path d="M8 1.333l1.654 3.36 3.679.533-2.666 2.6.633 3.667L8 9.546l-3.3 1.947.633-3.667-2.666-2.6 3.679-.533L8 1.333z" />
+                                        </svg>
+                                        AI Picks
+                                        {aiRecommended.length > 0 && (
+                                            <span
+                                                className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                                    activeTab === 'recommended'
+                                                        ? 'bg-violet-400 text-white'
+                                                        : 'bg-violet-100 text-violet-600'
+                                                }`}
+                                            >
+                                                {aiRecommended.length}
+                                            </span>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        {pageMode === 'board' &&
+                            !isAuthenticated &&
+                            hasAiMatches && (
                             <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
                                 <button
                                     onClick={() => setActiveTab('all')}
@@ -1938,17 +2234,6 @@ export default function JobListings({
                                         <path d="M8 1.333l1.654 3.36 3.679.533-2.666 2.6.633 3.667L8 9.546l-3.3 1.947.633-3.667-2.666-2.6 3.679-.533L8 1.333z" />
                                     </svg>
                                     AI Picks
-                                    {aiRecommended.length > 0 && (
-                                        <span
-                                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                                activeTab === 'recommended'
-                                                    ? 'bg-violet-400 text-white'
-                                                    : 'bg-violet-100 text-violet-600'
-                                            }`}
-                                        >
-                                            {aiRecommended.length}
-                                        </span>
-                                    )}
                                 </button>
                             </div>
                         )}
@@ -2036,27 +2321,149 @@ export default function JobListings({
                                 <option value="temporary">Temporary</option>
                                 <option value="internship">Internship</option>
                             </select>
-                            {activeTags.length > 0 && (
-                                <button
-                                    onClick={() => setActiveTags([])}
-                                    className="ml-auto flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-medium text-slate-400 transition-colors hover:text-slate-600"
-                                >
-                                    Clear tags ({activeTags.length})
-                                </button>
-                            )}
+                            <select
+                                value={sortBy}
+                                onChange={(e) =>
+                                    setSortBy(e.target.value as SortOption)
+                                }
+                                className="cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[13px] text-slate-600 outline-none focus:ring-2 focus:ring-blue-200"
+                            >
+                                <option value="newest">Newest first</option>
+                                <option value="salary_high">
+                                    Salary: high to low
+                                </option>
+                                <option value="salary_low">
+                                    Salary: low to high
+                                </option>
+                                <option value="deadline_soon">
+                                    Deadline soonest
+                                </option>
+                                {hasAiMatches && (
+                                    <option value="match_score">
+                                        Best AI match
+                                    </option>
+                                )}
+                            </select>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setShowAdvancedFilters((v) => !v)
+                                }
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                            >
+                                {showAdvancedFilters
+                                    ? 'Hide filters'
+                                    : 'More filters'}
+                            </button>
                         </div>
 
-                        {/* Advanced tag filter */}
-                        {allTags.length > 0 && (
-                            <div className="border-t border-slate-100 pt-3">
-                                <p className="mb-2 text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
-                                    Filter by tags
-                                </p>
-                                <TagList
-                                    tags={allTags}
-                                    active={activeTags}
-                                    onToggle={toggleTag}
-                                />
+                        {showAdvancedFilters && (
+                            <div className="grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-3">
+                                <div>
+                                    <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                                        Location
+                                    </label>
+                                    <select
+                                        value={locationFilter}
+                                        onChange={(e) =>
+                                            setLocationFilter(e.target.value)
+                                        }
+                                        className="w-full cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600 outline-none focus:ring-2 focus:ring-blue-200"
+                                    >
+                                        <option value="">All locations</option>
+                                        {allLocations.map((loc) => (
+                                            <option key={loc} value={loc}>
+                                                {loc}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                                        Min salary (BIRR)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        placeholder="e.g. 10000"
+                                        value={salaryMin}
+                                        onChange={(e) =>
+                                            setSalaryMin(e.target.value)
+                                        }
+                                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-blue-200"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                                        Max salary (BIRR)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        placeholder="e.g. 50000"
+                                        value={salaryMax}
+                                        onChange={(e) =>
+                                            setSalaryMax(e.target.value)
+                                        }
+                                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-blue-200"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                                        Deadline
+                                    </label>
+                                    <select
+                                        value={deadlineFilter}
+                                        onChange={(e) =>
+                                            setDeadlineFilter(
+                                                e.target
+                                                    .value as FilterDeadline,
+                                            )
+                                        }
+                                        className="w-full cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600 outline-none focus:ring-2 focus:ring-blue-200"
+                                    >
+                                        <option value="all">Any deadline</option>
+                                        <option value="urgent">
+                                            Urgent (≤5 days)
+                                        </option>
+                                        <option value="closing_soon">
+                                            Closing soon (≤14 days)
+                                        </option>
+                                    </select>
+                                </div>
+                                {hasAiMatches && (
+                                    <div>
+                                        <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                                            Min AI match %
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            placeholder="e.g. 50"
+                                            value={minMatchPct}
+                                            onChange={(e) =>
+                                                setMinMatchPct(e.target.value)
+                                            }
+                                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-blue-200"
+                                        />
+                                    </div>
+                                )}
+                                <div className="flex items-end">
+                                    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600">
+                                        <input
+                                            type="checkbox"
+                                            checked={verifiedOnly}
+                                            onChange={(e) =>
+                                                setVerifiedOnly(
+                                                    e.target.checked,
+                                                )
+                                            }
+                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-200"
+                                        />
+                                        Verified employers only
+                                    </label>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -2085,6 +2492,37 @@ export default function JobListings({
                                         Complete your CV with more skills and
                                         experience for better recommendations
                                     </p>
+                                </>
+                            ) : activeTab === 'saved' || pageMode === 'saved' ? (
+                                <>
+                                    <svg
+                                        className="mx-auto mb-3 h-10 w-10 opacity-40"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"
+                                        />
+                                    </svg>
+                                    <p className="font-medium text-slate-500">
+                                        No saved jobs yet
+                                    </p>
+                                    <p className="mt-1 text-sm">
+                                        Bookmark roles from the job board to
+                                        review them here later
+                                    </p>
+                                    {pageMode === 'saved' && (
+                                        <Link
+                                            href="/jobs"
+                                            className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                                        >
+                                            Browse jobs
+                                        </Link>
+                                    )}
                                 </>
                             ) : (
                                 <>
@@ -2133,8 +2571,11 @@ export default function JobListings({
                     vacancy={selected}
                     hasApplied={localAppliedIds.includes(selected.id)}
                     isAuthenticated={isAuthenticated}
+                    isSaved={localSavedIds.includes(selected.id)}
+                    savingBookmark={savingBookmarkId === selected.id}
                     onClose={() => setSelected(null)}
                     onApply={() => openApply(selected)}
+                    onToggleSave={() => toggleSave(selected.id)}
                 />
             )}
 

@@ -19,7 +19,7 @@ class ApplicationController extends Controller
     public function index()
     {
         $applications = Application::where('user_id', auth()->id())
-            ->with(['vacancy', 'cv'])
+            ->with(['vacancy', 'cv', 'hireReviews.reviewer:id,name'])
             ->latest()
             ->get();
  
@@ -111,6 +111,7 @@ class ApplicationController extends Controller
                 'cv.projects',
                 'interview',
                 'screeningResponse',
+                'hireReviews.reviewer:id,name',
             ])
             ->latest()
             ->get();
