@@ -13,6 +13,7 @@ use App\Models\Vacancy;
 use App\Services\AiMatchingService;
 use App\Services\AiScreeningService;
 use App\Services\HiringStatsService;
+use App\Services\TelegramService;
 use App\Support\VacancyMatchPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -167,7 +168,10 @@ class VacancyController extends Controller
         // application deadline rather than a manual open/closed toggle.
         $data['status']  = 'open';
 
-        Vacancy::create($data);
+        $vacancy = Vacancy::create($data);
+
+        // Notify Telegram channel – fire-and-forget (failures are logged, not thrown)
+        app(TelegramService::class)->notifyNewJob($vacancy);
 
         return back()->with('success', 'Job posted successfully.');
     }

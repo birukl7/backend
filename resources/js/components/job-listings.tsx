@@ -1923,6 +1923,26 @@ export default function JobListings({
         null,
     );
 
+    // Auto-open drawer from Telegram/share deep-link: /jobs?vacancy=<id>
+    useEffect(() => {
+        if (pageMode !== 'board') return;
+        const params = new URLSearchParams(window.location.search);
+        const vacancyId = params.get('vacancy');
+        if (!vacancyId) return;
+        const target = vacancies.find((v) => v.id === parseInt(vacancyId, 10));
+        if (target) setSelected(target);
+    }, [vacancies, pageMode]);
+
+    const closeDrawer = () => {
+        setSelected(null);
+        // Strip the ?vacancy= param so a refresh doesn't re-open the drawer
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('vacancy')) {
+            url.searchParams.delete('vacancy');
+            window.history.replaceState({}, '', url.toString());
+        }
+    };
+
     const allLocations = Array.from(
         new Set(
             vacancies
@@ -2634,7 +2654,7 @@ export default function JobListings({
                     isAuthenticated={isAuthenticated}
                     isSaved={localSavedIds.includes(selected.id)}
                     savingBookmark={savingBookmarkId === selected.id}
-                    onClose={() => setSelected(null)}
+                    onClose={closeDrawer}
                     onApply={() => openApply(selected)}
                     onToggleSave={() => toggleSave(selected.id)}
                 />
