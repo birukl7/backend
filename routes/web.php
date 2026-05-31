@@ -17,7 +17,7 @@ Route::inertia('/', 'welcome', [
     'canRegister' => Features::enabled(Features::registration()),
 ])->name('home');
 
-// ── Employer or job seeker (not admin) ───────────────────────────────────────
+
 Route::middleware(['auth', 'verified', 'role:employer|job_seeker'])->group(function () {
     Route::get('/notifications',                          [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('/api/notifications',                      [NotificationController::class, 'apiIndex'])->name('notifications.api');
@@ -40,7 +40,7 @@ Route::middleware(['auth', 'verified', 'role:employer|job_seeker'])->group(funct
     })->name('api.vacancy.preview');
 });
 
-// ── Employer routes ────────────────────────────────────────────────────────────
+// Employer routes
 Route::middleware(['auth', 'verified', 'role:employer'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'employer'])->name('dashboard');
 
@@ -80,7 +80,7 @@ Route::middleware(['auth', 'verified', 'role:employer'])->group(function () {
     });
 });
 
-// ── Job seeker routes ──────────────────────────────────────────────────────────
+// Job seeker routes
 Route::middleware(['auth', 'verified', 'role:job_seeker'])->group(function () {
     Route::get('/jobs', function (AiMatchingService $aiService) {
         $vacancies = \App\Models\Vacancy::where('status', 'open')

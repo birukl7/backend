@@ -13,6 +13,11 @@ class Assessment extends Model
 
     protected $casts = ['is_active' => 'boolean', 'is_ai_generated' => 'boolean'];
 
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function questions()
     {
         return $this->hasMany(QuizQuestion::class)->orderBy('sort_order');
