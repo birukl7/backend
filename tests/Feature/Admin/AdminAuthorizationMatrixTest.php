@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Announcement;
 use App\Models\Assessment;
 use App\Models\Cv;
 use App\Models\User;
@@ -43,17 +42,7 @@ function createAdminFixtures(User $admin): array
         'approval_status' => 'pending',
     ]);
 
-    $announcement = Announcement::create([
-        'title' => 'System notice',
-        'body' => 'General update.',
-        'audience' => 'all',
-        'is_visible' => true,
-        'created_by' => $admin->id,
-        'published_at' => now(),
-        'recipients_count' => 0,
-    ]);
-
-    return compact('employer', 'jobSeeker', 'vacancy', 'cv', 'assessment', 'announcement');
+    return compact('employer', 'jobSeeker', 'vacancy', 'cv', 'assessment');
 }
 
 test('non-admin users are forbidden from protected admin endpoints', function () {
@@ -74,12 +63,6 @@ test('non-admin users are forbidden from protected admin endpoints', function ()
         ['get', route('admin.job-moderation.index')],
         ['get', route('admin.suspicious-users.index')],
         ['get', route('admin.content-approval.index')],
-        ['get', route('admin.announcements.index')],
-        ['post', route('admin.announcements.store'), [
-            'title' => 'Blocked action',
-            'body' => 'Should be forbidden',
-            'audience' => 'all',
-        ]],
         ['get', route('admin.reports.index')],
     ];
 
@@ -91,6 +74,37 @@ test('non-admin users are forbidden from protected admin endpoints', function ()
         $response = $this->actingAs($nonAdmin)->{$method}($url, $payload);
         $response->assertForbidden();
     }
+});
+
+test('admin is forbidden from employer and job seeker app routes', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    $requests = [
+        ['get', route('dashboard')],
+        ['get', route('employer.jobs.index')],
+        ['get', route('applications.index')],
+        ['get', route('cv.index')],
+        ['get', route('jobs.index')],
+    ];
+
+    foreach ($requests as [$method, $url]) {
+        $this->actingAs($admin)->{$method}($url)->assertForbidden();
+    }
+});
+
+test('employer and job seeker cannot access each others routes', function () {
+    $employer = User::factory()->create();
+    $employer->assignRole('employer');
+
+    $jobSeeker = User::factory()->create();
+    $jobSeeker->assignRole('job_seeker');
+
+    $this->actingAs($employer)->get(route('employer.jobs.index'))->assertOk();
+    $this->actingAs($employer)->get(route('applications.index'))->assertForbidden();
+
+    $this->actingAs($jobSeeker)->get(route('applications.index'))->assertOk();
+    $this->actingAs($jobSeeker)->get(route('employer.jobs.index'))->assertForbidden();
 });
 
 test('admin can access all admin index pages', function () {
@@ -105,7 +119,6 @@ test('admin can access all admin index pages', function () {
     $this->actingAs($admin)->get(route('admin.job-moderation.index'))->assertOk();
     $this->actingAs($admin)->get(route('admin.suspicious-users.index'))->assertOk();
     $this->actingAs($admin)->get(route('admin.content-approval.index'))->assertOk();
-    $this->actingAs($admin)->get(route('admin.announcements.index'))->assertOk();
     $this->actingAs($admin)->get(route('admin.reports.index'))->assertOk();
 });
 
