@@ -2,7 +2,6 @@ import {
     BarChart3,
     Briefcase,
     Building2,
-    GraduationCap,
     LayoutGrid,
     ShieldAlert,
     Users,
@@ -39,11 +38,6 @@ export const adminNavItems: NavItem[] = [
         title: 'nav.suspiciousUsers',
         href: '/admin/suspicious-users',
         icon: ShieldAlert,
-    },
-    {
-        title: 'nav.contentApproval',
-        href: '/admin/content-approval?type=quizzes',
-        icon: GraduationCap,
     },
     {
         title: 'nav.reportsAnalytics',
