@@ -60,6 +60,8 @@ interface Props {
     saved_ids?: number[];
     user_cvs: UserCv[];
     ai_matches?: Record<number, number>;
+    ai_matching_hint?: string | null;
+    ai_matching_debug?: Record<string, unknown> | null;
     sidebar_stats?: SidebarStats | null;
     profile_completion?: number;
     is_authenticated?: boolean;
@@ -103,6 +105,8 @@ export default function Index({
     saved_ids = [],
     user_cvs,
     ai_matches = {},
+    ai_matching_hint = null,
+    ai_matching_debug = null,
     sidebar_stats,
     profile_completion = 0,
     is_authenticated = true,
@@ -114,6 +118,8 @@ export default function Index({
             saved_ids={saved_ids}
             user_cvs={user_cvs}
             ai_matches={ai_matches}
+            ai_matching_hint={ai_matching_hint}
+            ai_matching_debug={ai_matching_debug}
             sidebar_stats={sidebar_stats}
             profile_completion={profile_completion}
             is_authenticated={is_authenticated}

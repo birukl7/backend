@@ -1,5 +1,5 @@
 import { usePage, useForm, router, Link } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ScreeningChat from '@/components/screening-chat';
 import { DashboardWelcome } from '@/components/dashboard-welcome';
 import { VerificationBadges, isEmployerVerified } from '@/components/verification-badges';
@@ -50,6 +50,31 @@ interface Vacancy {
         employer_verification_status?: string | null;
         company_verification_status?: string | null;
     } | null;
+    match_score?: number | null;
+}
+
+/** Resolve AI match score from vacancy prop or ai_matches map (handles string/number keys). */
+function lookupMatchScore(
+    ai_matches: Record<string | number, number>,
+    vacancy: Vacancy,
+): number | undefined {
+    if (vacancy.match_score != null && !Number.isNaN(vacancy.match_score)) {
+        return vacancy.match_score;
+    }
+
+    const id = vacancy.id;
+
+    if (ai_matches[id] !== undefined) {
+        return ai_matches[id];
+    }
+
+    const asString = String(id);
+
+    if (ai_matches[asString] !== undefined) {
+        return ai_matches[asString];
+    }
+
+    return undefined;
 }
 
 interface UserCv {
@@ -82,6 +107,8 @@ interface Props {
     saved_ids?: number[];
     user_cvs?: UserCv[];
     ai_matches?: Record<number, number>; // vacancy_id -> score (0.0 – 1.0)
+    ai_matching_hint?: string | null;
+    ai_matching_debug?: Record<string, unknown> | null;
     sidebar_stats?: SidebarStats | null;
     profile_completion?: number; // 0–100
     is_authenticated?: boolean;
@@ -1848,6 +1875,8 @@ export default function JobListings({
     saved_ids = [],
     user_cvs = [],
     ai_matches = {},
+    ai_matching_hint = null,
+    ai_matching_debug = null,
     sidebar_stats,
     profile_completion = 0,
     is_authenticated = true,
@@ -1856,6 +1885,34 @@ export default function JobListings({
     const { auth } = usePage<{ auth: { user: AuthUser | null } }>().props;
     const user = auth.user;
     const isAuthenticated = is_authenticated && !!user;
+    const retriedAiMatches = useRef(false);
+
+    // If the user has a CV but the first request returned no scores (timeout, config), retry once.
+    useEffect(() => {
+        if (
+            retriedAiMatches.current ||
+            !isAuthenticated ||
+            user_cvs.length === 0 ||
+            vacancies.length === 0
+        ) {
+            return;
+        }
+
+        const hasAnyScore = vacancies.some(
+            (v) => lookupMatchScore(ai_matches, v) !== undefined,
+        );
+
+        if (hasAnyScore) {
+            return;
+        }
+
+        retriedAiMatches.current = true;
+
+        router.reload({
+            only: ['vacancies', 'ai_matches'],
+            preserveScroll: true,
+        });
+    }, [isAuthenticated, user_cvs.length, vacancies.length, ai_matches]);
 
     const [search, setSearch] = useState('');
     const [workType, setWorkType] = useState<FilterWorkType>('all');
@@ -1929,7 +1986,7 @@ export default function JobListings({
         }
         const minMatch = minMatchPct ? parseInt(minMatchPct, 10) / 100 : null;
         if (minMatch !== null && !Number.isNaN(minMatch)) {
-            const score = ai_matches[v.id] ?? 0;
+            const score = lookupMatchScore(ai_matches, v) ?? 0;
             if (score < minMatch) return false;
         }
         if (search.trim()) {
@@ -1973,7 +2030,8 @@ export default function JobListings({
                 }
                 case 'match_score':
                     return (
-                        (ai_matches[b.id] ?? 0) - (ai_matches[a.id] ?? 0)
+                        (lookupMatchScore(ai_matches, b) ?? 0) -
+                        (lookupMatchScore(ai_matches, a) ?? 0)
                     );
                 case 'newest':
                 default:
@@ -1988,7 +2046,9 @@ export default function JobListings({
 
     const filtered = sortVacancies(vacancies.filter(matchesFilters));
 
-    const hasAiMatches = Object.keys(ai_matches).length > 0;
+    const hasAiMatches =
+        Object.keys(ai_matches).length > 0 ||
+        vacancies.some((v) => lookupMatchScore(ai_matches, v) !== undefined);
 
     // AI-ranked list: vacancies with score >= 30%, sorted best-first, respects active filters
     const aiRecommended = hasAiMatches
@@ -1996,7 +2056,7 @@ export default function JobListings({
               vacancies
                   .filter(
                       (v) =>
-                          (ai_matches[v.id] ?? 0) >= 0.3 &&
+                          (lookupMatchScore(ai_matches, v) ?? 0) >= 0.3 &&
                           matchesFilters(v),
                   ),
           )
@@ -2104,6 +2164,25 @@ export default function JobListings({
                     ) : (
                         <GuestHero count={filtered.length} />
                     )}
+
+                    {isAuthenticated && ai_matching_hint && !hasAiMatches && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                            {ai_matching_hint}
+                        </div>
+                    )}
+
+                    {isAuthenticated &&
+                        ai_matching_debug &&
+                        typeof ai_matching_debug.status === 'string' && (
+                            <details className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+                                <summary className="cursor-pointer font-semibold text-slate-900">
+                                    AI matching debug ({ai_matching_debug.status as string})
+                                </summary>
+                                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap">
+                                    {JSON.stringify(ai_matching_debug, null, 2)}
+                                </pre>
+                            </details>
+                        )}
 
                     <div className="flex items-center justify-between">
                         <div>
@@ -2557,7 +2636,7 @@ export default function JobListings({
                                     vacancy={v}
                                     hasApplied={localAppliedIds.includes(v.id)}
                                     onClick={() => setSelected(v)}
-                                    matchScore={ai_matches[v.id]}
+                                    matchScore={lookupMatchScore(ai_matches, v)}
                                 />
                             ))}
                         </div>

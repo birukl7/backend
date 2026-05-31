@@ -10,6 +10,7 @@ use App\Models\Shortlist;
 use App\Models\Vacancy;
 use App\Services\AiMatchingService;
 use App\Services\HiringStatsService;
+use App\Support\VacancyMatchPresenter;
 use Inertia\Inertia;
 
 class SavedJobController extends Controller
@@ -52,6 +53,8 @@ class SavedJobController extends Controller
 
         $aiMatches = $aiService->matchForUser($userId, $vacancyData);
 
+        $vacancies = VacancyMatchPresenter::attach($vacancies, $aiMatches);
+
         return Inertia::render('saved-jobs/index', [
             'vacancies'          => $vacancies,
             'saved_ids'          => $vacancies->pluck('id')->all(),
@@ -59,7 +62,7 @@ class SavedJobController extends Controller
             'user_cvs'           => Cv::where('user_id', $userId)
                 ->select('id', 'title', 'full_name', 'is_default', 'source', 'original_filename')
                 ->get(),
-            'ai_matches'         => $aiMatches,
+            'ai_matches'         => VacancyMatchPresenter::forInertia($aiMatches),
             'sidebar_stats'      => [
                 'applied'       => Application::where('user_id', $userId)->count(),
                 'interviews'    => Interview::where('job_seeker_id', $userId)->count(),

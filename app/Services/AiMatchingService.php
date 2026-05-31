@@ -63,7 +63,29 @@ class AiMatchingService
 
         $this->appendVerifiedSkills($cv, $parts);
 
-        return implode('. ', array_filter($parts));
+        $text = implode('. ', array_filter($parts));
+
+        if (trim($text) !== '') {
+            return $text;
+        }
+
+        return $this->buildResumeFallback($cv);
+    }
+
+    /**
+     * Minimum text when the CV shell exists but sections are empty (still allows scoring).
+     */
+    private function buildResumeFallback(Cv $cv): string
+    {
+        $cv->loadMissing('user:id,name,headline,bio');
+
+        return implode('. ', array_filter([
+            $cv->title ? "Professional profile: {$cv->title}" : null,
+            $cv->full_name,
+            $cv->location,
+            $cv->user?->headline,
+            $cv->user?->bio,
+        ]));
     }
 
     /** @param list<string> $parts */
@@ -217,10 +239,10 @@ class AiMatchingService
         // ── No (complete) cache — compute scores for missing or all vacancies ─
         $cv = Cv::where('user_id', $userId)
             ->where('is_default', true)
-            ->with(['skills', 'experiences', 'educations', 'projects'])
+            ->with(['skills', 'experiences', 'educations', 'projects', 'user:id,name,headline,bio'])
             ->first()
             ?? Cv::where('user_id', $userId)
-                ->with(['skills', 'experiences', 'educations', 'projects'])
+                ->with(['skills', 'experiences', 'educations', 'projects', 'user:id,name,headline,bio'])
                 ->first();
 
         if (!$cv) {
@@ -252,5 +274,131 @@ class AiMatchingService
         }
 
         return array_replace($cached, $scoreMap);
+    }
+
+    /**
+     * Human-readable hint for the job board when match badges cannot be shown.
+     */
+    public function hintForUser(int $userId): ?string
+    {
+        if (! Cv::where('user_id', $userId)->exists()) {
+            return 'Create a CV to see AI match scores on jobs.';
+        }
+
+        $cv = Cv::where('user_id', $userId)
+            ->with(['skills', 'experiences', 'educations', 'projects', 'user:id,name,headline,bio'])
+            ->orderByDesc('is_default')
+            ->first();
+
+        if ($cv && trim($this->buildResumeText($cv)) === '') {
+            return 'Add a summary, skills, or experience to your CV to enable AI match scores.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Detailed diagnostics (APP_DEBUG, artisan ai:debug-match).
+     *
+     * @param  list<array<string, mixed>>  $vacancies
+     * @return array<string, mixed>
+     */
+    public function diagnose(int $userId, array $vacancies = []): array
+    {
+        $base = [
+            'status'          => 'ok',
+            'message'         => 'AI matching is configured and scores are available.',
+            'ai_matching_url' => $this->baseUrl,
+            'user_id'         => $userId,
+        ];
+
+        try {
+            $health = Http::connectTimeout(3)->timeout(8)->get(rtrim($this->baseUrl, '/').'/health');
+            $base['service_health'] = $health->successful() ? $health->body() : null;
+            $base['http_status']    = $health->status();
+
+            if (! $health->successful()) {
+                return array_merge($base, [
+                    'status'  => 'service_unreachable',
+                    'message' => "AI service health check failed (HTTP {$health->status()}). Check AI_MATCHING_URL and EC2 security group port 8001.",
+                ]);
+            }
+        } catch (\Throwable $e) {
+            return array_merge($base, [
+                'status'  => 'service_unreachable',
+                'message' => 'Cannot reach AI service: '.$e->getMessage(),
+            ]);
+        }
+
+        $cvCount = Cv::where('user_id', $userId)->count();
+
+        if ($cvCount === 0) {
+            return array_merge($base, [
+                'status'  => 'no_cv',
+                'message' => 'User has no CV. Matching only runs for users with at least one CV.',
+            ]);
+        }
+
+        $cv = Cv::where('user_id', $userId)
+            ->with(['skills', 'experiences', 'educations', 'projects', 'user:id,name,headline,bio'])
+            ->orderByDesc('is_default')
+            ->first();
+
+        $resumeText = $cv ? $this->buildResumeText($cv) : '';
+        $resumeLen  = strlen(trim($resumeText));
+
+        $base['cv_id']               = $cv?->id;
+        $base['cv_title']            = $cv?->title;
+        $base['cv_is_default']       = (bool) $cv?->is_default;
+        $base['cv_skills_count']     = $cv?->skills->count() ?? 0;
+        $base['cv_experiences_count'] = $cv?->experiences->count() ?? 0;
+        $base['resume_text_length']  = $resumeLen;
+        $base['resume_preview']      = $resumeLen > 0 ? mb_substr($resumeText, 0, 120).'…' : null;
+
+        if ($resumeLen === 0) {
+            return array_merge($base, [
+                'status'  => 'empty_cv',
+                'message' => 'CV exists but resume text is empty. Add summary, skills, experience, or upload a PDF/DOCX.',
+            ]);
+        }
+
+        if ($vacancies === []) {
+            $vacancies = \App\Models\Vacancy::active()
+                ->limit(3)
+                ->get(['id', 'title', 'description', 'requirements'])
+                ->map(fn ($v) => [
+                    'id'           => $v->id,
+                    'title'        => $v->title,
+                    'description'  => $v->description,
+                    'requirements' => $v->requirements,
+                ])
+                ->all();
+        }
+
+        $base['vacancy_count'] = count($vacancies);
+
+        if ($vacancies === []) {
+            return array_merge($base, [
+                'status'  => 'no_vacancies',
+                'message' => 'No active vacancies to score against.',
+            ]);
+        }
+
+        $scores = $this->matchForUser($userId, $vacancies);
+        $base['scores_count']   = count($scores);
+        $base['sample_scores']  = array_slice($scores, 0, 5, true);
+        $base['cached_in_db']   = AiMatch::where('user_id', $userId)->count();
+
+        if ($scores === []) {
+            return array_merge($base, [
+                'status'  => 'service_error',
+                'message' => 'Resume text is present but POST /match returned no scores. Check storage/logs/laravel.log.',
+            ]);
+        }
+
+        return array_merge($base, [
+            'status'  => 'ok',
+            'message' => 'Matching works. '.count($scores).' score(s) returned.',
+        ]);
     }
 }

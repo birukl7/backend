@@ -52,6 +52,46 @@ test('match scores are fetched from the configured AI service URL', function () 
         && $request['resume_text'] !== '');
 });
 
+test('match scores use cv title fallback when sections are empty', function () {
+    config(['services.ai_matching.url' => 'http://ai.example.test']);
+
+    $user = User::factory()->create();
+
+    Cv::create([
+        'user_id'    => $user->id,
+        'title'      => 'Product Designer',
+        'is_default' => true,
+    ]);
+
+    $employer = User::factory()->create();
+
+    $vacancy = Vacancy::create([
+        'user_id'              => $employer->id,
+        'title'                => 'UX Designer',
+        'description'          => 'Design product interfaces',
+        'application_deadline' => now()->addMonth(),
+    ]);
+
+    Http::fake([
+        'http://ai.example.test/match' => Http::response([
+            'matches' => [
+                ['vacancy_id' => $vacancy->id, 'score' => 0.55],
+            ],
+        ]),
+    ]);
+
+    $scores = app(AiMatchingService::class)->matchForUser($user->id, [
+        [
+            'id'          => $vacancy->id,
+            'title'       => $vacancy->title,
+            'description' => $vacancy->description,
+        ],
+    ]);
+
+    expect($scores)->toBe([(int) $vacancy->id => 0.55]);
+    Http::assertSent(fn ($request) => str_contains($request['resume_text'], 'Product Designer'));
+});
+
 test('match scores return empty when user has no cv', function () {
     $user = User::factory()->create();
     $employer = User::factory()->create();

@@ -13,7 +13,9 @@ use App\Models\Vacancy;
 use App\Services\AiMatchingService;
 use App\Services\AiScreeningService;
 use App\Services\HiringStatsService;
+use App\Support\VacancyMatchPresenter;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class VacancyController extends Controller
 {
@@ -91,6 +93,18 @@ class VacancyController extends Controller
 
         $aiMatches = $aiService->matchForUser($userId, $vacancyData);
 
+        if ($aiMatches === [] && Cv::where('user_id', $userId)->exists() && $vacancyData !== []) {
+            Log::warning('Job board AI matches empty for user with CV', [
+                'user_id'         => $userId,
+                'ai_matching_url' => config('services.ai_matching.url'),
+                'vacancy_count'   => count($vacancyData),
+            ]);
+        }
+
+        $vacancies = VacancyMatchPresenter::attach($vacancies, $aiMatches);
+
+        $aiMatchingHint = $aiMatches === [] ? $aiService->hintForUser($userId) : null;
+
         return inertia('vacancy/index', [
             'vacancies'        => $vacancies,
             'is_authenticated' => true,
@@ -99,8 +113,10 @@ class VacancyController extends Controller
             'user_cvs'         => Cv::where('user_id', $userId)
                                      ->select('id', 'title', 'full_name', 'is_default', 'source', 'original_filename')
                                      ->get(),
-            'ai_matches'       => $aiMatches,
-            'sidebar_stats'    => [
+            'ai_matches'         => VacancyMatchPresenter::forInertia($aiMatches),
+            'ai_matching_hint'   => $aiMatchingHint,
+            'ai_matching_debug'  => config('app.debug') ? $aiService->diagnose($userId, $vacancyData) : null,
+            'sidebar_stats'      => [
                 'applied'       => Application::where('user_id', $userId)->count(),
                 'interviews'    => Interview::where('job_seeker_id', $userId)->count(),
                 'skills_earned' => \App\Models\AssessmentResult::where('user_id', $userId)
