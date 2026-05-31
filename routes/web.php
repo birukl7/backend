@@ -1,11 +1,16 @@
 <?php
 
+use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\GoogleCalendarController;
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\HireReviewController;
+use App\Http\Controllers\HiringStatsController;
 use App\Http\Controllers\QuizController;
+use App\Http\Controllers\SavedJobController;
 use App\Http\Controllers\ScreeningController;
-use App\Services\AiMatchingService;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 use App\Http\Controllers\CvController;
@@ -17,27 +22,26 @@ Route::inertia('/', 'welcome', [
     'canRegister' => Features::enabled(Features::registration()),
 ])->name('home');
 
+// ── Public ───────────────────────────────────────────────────────────────────
+// The job board and hiring statistics are open to everyone. Guests can browse
+// but are redirected to login when they try to apply (handled client-side).
+Route::get('/jobs', [VacancyController::class, 'browse'])->name('jobs.index');
+Route::get('/hiring-statistics', [HiringStatsController::class, 'index'])->name('hiring-statistics');
 
-Route::middleware(['auth', 'verified', 'role:employer|job_seeker'])->group(function () {
-    Route::get('/notifications',                          [NotificationController::class, 'index'])->name('notifications.index');
-    Route::get('/api/notifications',                      [NotificationController::class, 'apiIndex'])->name('notifications.api');
-    Route::patch('/notifications/{notification}/read',    [NotificationController::class, 'markRead'])->name('notifications.read');
-    Route::post('/notifications/read-all',                [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
-    Route::delete('/notifications/{notification}',        [NotificationController::class, 'destroy'])->name('notifications.destroy');
+Route::middleware('guest')->group(function () {
+    Route::get('auth/google', [GoogleAuthController::class, 'redirect'])->name('auth.google');
+    Route::get('auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
+});
 
-    Route::get('/api/vacancies/{vacancy}/preview', function (\App\Models\Vacancy $vacancy) {
-        $userId = auth()->id();
+// Google Calendar integration (authenticated users only)
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('auth/google/calendar', [GoogleCalendarController::class, 'connect'])->name('google.calendar.connect');
+    Route::get('auth/google/calendar/callback', [GoogleCalendarController::class, 'callback'])->name('google.calendar.callback');
+    Route::post('auth/google/calendar/disconnect', [GoogleCalendarController::class, 'disconnect'])->name('google.calendar.disconnect');
+});
 
-        return response()->json([
-            'vacancy'     => $vacancy,
-            'has_applied' => \App\Models\Application::where('user_id', $userId)
-                                 ->where('vacancy_id', $vacancy->id)
-                                 ->exists(),
-            'user_cvs'    => \App\Models\Cv::where('user_id', $userId)
-                                 ->select('id', 'title', 'full_name', 'is_default')
-                                 ->get(),
-        ]);
-    })->name('api.vacancy.preview');
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('dashboard', [DashboardController::class, 'employer'])->name('dashboard');
 });
 
 // Employer routes
@@ -68,89 +72,14 @@ Route::middleware(['auth', 'verified', 'role:employer'])->group(function () {
     Route::get('/employer/jobs/{vacancy}/ai-suggestions', [VacancyController::class, 'aiSuggestions'])->name('employer.jobs.ai-suggestions');
     Route::post('/employer/jobs/{vacancy}/invite/{userId}', [VacancyController::class, 'inviteUser'])->name('employer.jobs.invite');
 
-    Route::prefix('employer')->name('employer.')->group(function () {
-        Route::get('/applications',  [ApplicationController::class, 'employerIndex'])->name('applications.index');
-        Route::patch('/applications/{application}/status', [ApplicationController::class, 'updateStatus'])->name('applications.status');
-
-        Route::get('/interviews',    [InterviewController::class, 'employerIndex'])->name('interviews.index');
-        Route::post('/applications/{application}/interview', [InterviewController::class, 'store'])->name('interviews.store');
-        Route::patch('/interviews/{interview}/reschedule',   [InterviewController::class, 'reschedule'])->name('interviews.reschedule');
-        Route::patch('/interviews/{interview}/complete',     [InterviewController::class, 'complete'])->name('interviews.complete');
-        Route::delete('/interviews/{interview}',             [InterviewController::class, 'destroy'])->name('interviews.destroy');
-    });
-});
-
-// Job seeker routes
-Route::middleware(['auth', 'verified', 'role:job_seeker'])->group(function () {
-    Route::get('/jobs', function (AiMatchingService $aiService) {
-        $vacancies = \App\Models\Vacancy::where('status', 'open')
-            ->with('screening:id,vacancy_id,is_enabled')
-            ->latest()
-            ->get()
-            ->map(function ($v) {
-                $v->screening_required = (bool) optional($v->screening)->is_enabled;
-                unset($v->screening);
-
-                return $v;
-            });
-
-        $vacancyData = $vacancies->map(fn ($v) => [
-            'id'           => $v->id,
-            'title'        => $v->title,
-            'description'  => $v->description,
-            'requirements' => $v->requirements,
-        ])->toArray();
-
-        $aiMatches = $aiService->matchForUser(auth()->id(), $vacancyData);
-
-        return inertia('vacancy/index', [
-            'vacancies'   => $vacancies,
-            'applied_ids' => \App\Models\Application::where('user_id', auth()->id())
-                                 ->pluck('vacancy_id'),
-            'user_cvs'    => \App\Models\Cv::where('user_id', auth()->id())
-                                 ->select('id', 'title', 'full_name', 'is_default')
-                                 ->get(),
-            'ai_matches'  => $aiMatches,
-            'sidebar_stats' => [
-                'applied'       => \App\Models\Application::where('user_id', auth()->id())->count(),
-                'interviews'    => \App\Models\Interview::where('job_seeker_id', auth()->id())->count(),
-                'skills_earned' => \App\Models\AssessmentResult::where('user_id', auth()->id())
-                                       ->where('passed', true)
-                                       ->distinct('assessment_id')
-                                       ->count('assessment_id'),
-                'cvs_count'     => \App\Models\Cv::where('user_id', auth()->id())->count(),
-            ],
-            'profile_completion' => (function () {
-                $cv = \App\Models\Cv::where('user_id', auth()->id())
-                    ->where('is_default', true)
-                    ->with(['skills', 'experiences'])
-                    ->first()
-                    ?? \App\Models\Cv::where('user_id', auth()->id())
-                        ->with(['skills', 'experiences'])
-                        ->first();
-
-                $score = 20;
-                if ($cv) {
-                    $score += 30;
-                    if (! empty($cv->summary)) {
-                        $score += 15;
-                    }
-                    if ($cv->skills->count() > 0) {
-                        $score += 20;
-                    }
-                    if ($cv->experiences->count() > 0) {
-                        $score += 15;
-                    }
-                }
-
-                return $score;
-            })(),
-        ]);
-    })->name('jobs.index');
-
+// ── Job seeker ────────────────────────────────────────────────────────────
     Route::get('/my-applications',  [ApplicationController::class, 'index'])->name('applications.index');
+    Route::get('/saved-jobs',       [SavedJobController::class, 'index'])->name('saved-jobs.index');
+    Route::post('/saved-jobs/{vacancy}', [SavedJobController::class, 'store'])->name('saved-jobs.store');
+    Route::delete('/saved-jobs/{vacancy}', [SavedJobController::class, 'destroy'])->name('saved-jobs.destroy');
     Route::post('/applications',    [ApplicationController::class, 'store'])->name('applications.store');
     Route::delete('/applications/{application}', [ApplicationController::class, 'destroy'])->name('applications.destroy');
+    Route::post('/applications/{application}/review', [HireReviewController::class, 'store'])->name('applications.review');
 
     Route::get('/my-interviews',    [InterviewController::class, 'jobSeekerIndex'])->name('interviews.index');
     Route::delete('/interviews/{interview}', [InterviewController::class, 'destroy'])->name('interviews.destroy');
@@ -165,7 +94,9 @@ Route::middleware(['auth', 'verified', 'role:job_seeker'])->group(function () {
 
     Route::get('/cv',              [CvController::class, 'index'])->name('cv.index');
     Route::post('/cv',             [CvController::class, 'store'])->name('cv.store');
+    Route::post('/cv/upload',      [CvController::class, 'upload'])->name('cv.upload');
     Route::get('/cv/{id}',         [CvController::class, 'show'])->name('cv.show');
+    Route::get('/cv/{id}/download', [CvController::class, 'download'])->name('cv.download');
     Route::put('/cv/{id}',         [CvController::class, 'update'])->name('cv.update');
     Route::delete('/cv/{id}',      [CvController::class, 'destroy'])->name('cv.destroy');
 
@@ -189,11 +120,57 @@ Route::middleware(['auth', 'verified', 'role:job_seeker'])->group(function () {
     Route::post('/cv/{id}/photo',                  [CvController::class, 'uploadPhoto'])->name('cv.photo');
     Route::post('/cv/{id}/ai-summary',             [CvController::class, 'aiSummary'])->name('cv.ai-summary');
     Route::post('/cv/{id}/use-ai-summary',         [CvController::class, 'useAiSummary'])->name('cv.use-ai-summary');
+});
+
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/notifications',                          [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/api/notifications',                      [NotificationController::class, 'apiIndex'])->name('notifications.api');
+    Route::patch('/notifications/{notification}/read',    [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/read-all',                [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::delete('/notifications/{notification}',        [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
+    // Vacancy preview — JSON endpoint for the notification drawer.
+    // Lives here (not api.php) so the web session resolves auth()->user() correctly.
+    Route::get('/api/vacancies/{vacancy}/preview', function (\App\Models\Vacancy $vacancy) {
+        $userId = auth()->id();
+        $hasApplied = \App\Models\Application::where('user_id', $userId)
+            ->where('vacancy_id', $vacancy->id)
+            ->exists();
+
+        if ($vacancy->is_expired && ! $hasApplied) {
+            abort(404);
+        }
+
+        $vacancy->load('employer:id,name,company_name,employer_type,employer_verification_status,company_verification_status');
+
+        return response()->json([
+            'vacancy'     => $vacancy,
+            'has_applied' => $hasApplied,
+            'user_cvs'    => \App\Models\Cv::where('user_id', $userId)
+                                 ->select('id', 'title', 'full_name', 'is_default', 'source', 'original_filename')
+                                 ->get(),
+        ]);
+    })->name('api.vacancy.preview');
+
+    // AI suggestions + invite (employer only)
+    Route::get('/employer/jobs/{vacancy}/ai-suggestions', [VacancyController::class, 'aiSuggestions'])->name('employer.jobs.ai-suggestions');
+    Route::post('/employer/jobs/{vacancy}/invite/{userId}', [VacancyController::class, 'inviteUser'])->name('employer.jobs.invite');
 
     Route::get('/quiz',                        [QuizController::class, 'index'])->name('quiz.index');
     Route::post('/quiz/generate',               [QuizController::class, 'generate'])->name('quiz.generate');
     Route::get('/quiz/{assessment}',            [QuizController::class, 'show'])->name('quiz.show');
     Route::post('/quiz/{assessment}/submit',    [QuizController::class, 'submit'])->name('quiz.submit');
+});
+
+// ── Chat (real-time via SSE) ───────────────────────────────────────────────────
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/chat',                                      [ChatController::class, 'index'])->name('chat.index');
+    Route::post('/chat',                                     [ChatController::class, 'store'])->name('chat.store');
+    Route::post('/chat/{conversation}/messages',             [ChatController::class, 'sendMessage'])->name('chat.send');
+    Route::get('/chat/{conversation}/poll',                  [ChatController::class, 'poll'])->name('chat.poll');
+    Route::patch('/chat/{conversation}/read',                [ChatController::class, 'markRead'])->name('chat.read');
 });
 
 require __DIR__.'/settings.php';

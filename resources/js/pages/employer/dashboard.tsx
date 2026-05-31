@@ -16,7 +16,7 @@ import {
     Tooltip,
     ResponsiveContainer,
 } from 'recharts';
-import { Briefcase, Users, CheckCircle, XCircle } from 'lucide-react';
+import { Briefcase, Users, CheckCircle, XCircle, Award } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,7 @@ interface Stats {
     openJobs: number;
     closedJobs: number;
     totalApplications: number;
+    totalHires: number;
 }
 
 interface StatusItem {
@@ -231,7 +232,7 @@ export default function EmployerDashboard() {
                 <DashboardWelcome meta={welcomeMeta} />
 
                 {/* ── Stat cards ── */}
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
                     <StatCard
                         label="Total Jobs Posted"
                         value={stats.totalJobs}
@@ -250,7 +251,7 @@ export default function EmployerDashboard() {
                         }
                     />
                     <StatCard
-                        label="Closed Positions"
+                        label="Expired Positions"
                         value={stats.closedJobs}
                         icon={XCircle}
                         accent="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
@@ -263,6 +264,17 @@ export default function EmployerDashboard() {
                         sub={
                             stats.openJobs
                                 ? `~${Math.round(stats.totalApplications / Math.max(stats.openJobs, 1))} per open job`
+                                : undefined
+                        }
+                    />
+                    <StatCard
+                        label="Total Hires"
+                        value={stats.totalHires}
+                        icon={Award}
+                        accent="bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
+                        sub={
+                            stats.totalApplications
+                                ? `${Math.round((stats.totalHires / stats.totalApplications) * 100)}% hire rate`
                                 : undefined
                         }
                     />

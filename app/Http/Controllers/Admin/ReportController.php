@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\User;
 use App\Models\Vacancy;
+use App\Support\DatabaseYearMonth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -95,7 +96,10 @@ class ReportController extends Controller
     {
         $raw = (clone $query)
             ->where('created_at', '>=', now()->subMonths($monthsBack)->startOfMonth())
-            ->select(DB::raw('strftime("%Y-%m", created_at) as ym'), DB::raw('count(*) as count'))
+            ->select(
+                DB::raw(DatabaseYearMonth::expression('created_at').' as ym'),
+                DB::raw('count(*) as count'),
+            )
             ->groupBy('ym')
             ->orderBy('ym')
             ->get()

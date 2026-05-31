@@ -10,12 +10,15 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "aws/aws-sdk-php": "*",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/fortify": "^1.34",
-        "laravel/framework": "^13.0",
+        "laravel/framework": "^13.11.2",
         "laravel/sanctum": "^4.0",
+        "laravel/socialite": "*",
         "laravel/tinker": "^3.0",
         "laravel/wayfinder": "^0.1.14",
+        "smalot/pdfparser": "*",
         "spatie/laravel-permission": "*"
     },
     "require-dev": {
@@ -51,7 +54,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"npm run dev\" --names='server,queue,vite'"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#fdba74\" \"php -d upload_max_filesize=10M -d post_max_size=12M artisan serve\" \"php artisan queue:listen --tries=1\" \"npm run dev\" --names='server,queue,vite'"
         ],
         "dev:ssr": [
             "npm run build:ssr",
@@ -81,8 +84,7 @@
             "@php artisan package:discover --ansi"
         ],
         "post-update-cmd": [
-            "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
-            "@php artisan boost:update --ansi"
+            "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
         ],
         "post-root-package-install": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""

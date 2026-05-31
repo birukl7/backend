@@ -39,6 +39,10 @@ return [
         'url' => env('AI_MATCHING_URL', 'http://localhost:8001'),
     ],
 
+    'telegram' => [
+        'service_url' => env('TELEGRAM_SERVICE_URL', ''),
+    ],
+
     'groq' => [
         'key'   => env('GROQ_API_KEY'),
         'model' => env('GROQ_MODEL', 'llama-3.1-8b-instant'),
@@ -46,6 +50,12 @@ return [
 
     'openai' => [
         'key' => env('OPENAI_API_KEY'),
+    ],
+
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', env('APP_URL').'/auth/google/callback'),
     ],
 
 ];

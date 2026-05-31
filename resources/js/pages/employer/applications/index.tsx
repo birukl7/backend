@@ -1,8 +1,10 @@
 import AppLayout from "@/layouts/app-layout";
-import { Head, router, useForm } from "@inertiajs/react";
+import { Head, router, useForm, usePage } from "@inertiajs/react";
+import { MessageSquare } from "lucide-react";
 import { useState } from "react";
 import ScreeningReport, { ScreeningResponseData } from "@/components/screening-report";
 import EmployerCvBrief from "@/components/employer-cv-brief";
+import HireReviewForm from "@/components/hire-review-form";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +32,15 @@ interface Interview {
     id: number; scheduled_at: string; status: string; notes: string | null; meeting_link: string;
 }
 
+interface HireReview {
+    id: number;
+    rating: number;
+    comment: string | null;
+    created_at: string;
+    reviewer_id: number;
+    reviewer?: { id: number; name: string };
+}
+
 interface Application {
     id: number; status: AppStatus; cover_letter: string | null; created_at: string;
     vacancy: { id: number; title: string; location: string | null; work_type: string; employment_type: string; };
@@ -37,6 +48,7 @@ interface Application {
     cv: Cv;
     interview: Interview | null;
     screening_response?: ScreeningResponseData | null;
+    hire_reviews?: HireReview[];
 }
 
 interface Props { applications: Application[]; }
@@ -75,6 +87,12 @@ function CvPreviewDrawer({ app, onClose, onSchedule, onReschedule }: {
 }) {
     const cv = app.cv;
     const accent = "#2563eb";
+    const [showChat, setShowChat] = useState(false);
+    const { auth } = usePage<{ auth: { user: { id: number } } }>().props;
+    const userId = auth.user.id;
+    const reviews = app.hire_reviews ?? [];
+    const myReview = reviews.find((r) => r.reviewer_id === userId);
+    const theirReview = reviews.find((r) => r.reviewer_id !== userId);
 
     return (
         <>
@@ -115,6 +133,30 @@ function CvPreviewDrawer({ app, onClose, onSchedule, onReschedule }: {
                         <div className="mb-5 bg-amber-50 border border-amber-100 rounded-2xl px-5 py-4">
                             <p className="text-[11px] font-bold text-amber-600 uppercase tracking-widest mb-2">Cover Letter</p>
                             <p className="text-sm text-amber-800 leading-relaxed whitespace-pre-line">{app.cover_letter}</p>
+                        </div>
+                    )}
+
+                    {app.status === "hired" && (
+                        <div className="mb-5 space-y-3">
+                            <HireReviewForm
+                                applicationId={app.id}
+                                existingReview={myReview}
+                                revieweeLabel={app.user.name}
+                            />
+                            {theirReview && (
+                                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                                        Candidate feedback
+                                    </p>
+                                    <p className="mt-1 text-[12px] text-amber-600">
+                                        {'★'.repeat(theirReview.rating)}{'☆'.repeat(5 - theirReview.rating)}
+                                        {' '}({theirReview.rating}/5)
+                                    </p>
+                                    {theirReview.comment && (
+                                        <p className="mt-1 text-[13px] text-slate-600">{theirReview.comment}</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -223,7 +265,14 @@ function CvPreviewDrawer({ app, onClose, onSchedule, onReschedule }: {
                 </div>
 
                 {/* Sticky footer */}
-                <div className="px-6 py-4 border-t border-slate-100 bg-white shrink-0 flex gap-3">
+                <div className="px-6 py-4 border-t border-slate-100 bg-white shrink-0 flex gap-3 flex-wrap">
+                    <button
+                        onClick={() => setShowChat(true)}
+                        className="px-4 py-2.5 rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 text-sm font-medium transition-colors flex items-center gap-1.5"
+                    >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        Message
+                    </button>
                     {app.status !== "rejected" && app.status !== "hired" && (
                         <button
                             onClick={() => { router.patch(`/employer/applications/${app.id}/status`, { status: "rejected" }); onClose(); }}
@@ -281,6 +330,80 @@ function CvPreviewDrawer({ app, onClose, onSchedule, onReschedule }: {
                             Interview {app.interview.status}
                         </span>
                     )}
+                </div>
+            </div>
+            {showChat && <StartChatDialog app={app} onClose={() => setShowChat(false)} />}
+        </>
+    );
+}
+
+// ─── Start Chat Dialog ────────────────────────────────────────────────────────
+
+function StartChatDialog({ app, onClose }: { app: Application; onClose: () => void }) {
+    const [message, setMessage] = useState("");
+    const [sending, setSending] = useState(false);
+
+    const submit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!message.trim() || sending) return;
+        setSending(true);
+        try {
+            const token = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? "";
+            const res = await fetch("/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token, Accept: "application/json" },
+                body: JSON.stringify({
+                    job_seeker_id: app.user.id,
+                    vacancy_id: app.vacancy.id,
+                    message: message.trim(),
+                }),
+            });
+            if (res.ok) {
+                const json = await res.json() as { redirect: string };
+                router.visit(json.redirect);
+            }
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
+        <>
+            <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] z-50" onClick={onClose} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+                            <MessageSquare className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-bold text-slate-900">Start a conversation</h3>
+                            <p className="text-xs text-slate-400">with {app.user.name} · re: {app.vacancy.title}</p>
+                        </div>
+                    </div>
+                    <form onSubmit={submit} className="space-y-4">
+                        <textarea
+                            value={message}
+                            onChange={e => setMessage(e.target.value)}
+                            rows={4}
+                            placeholder="Type your first message…"
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none placeholder:text-slate-400"
+                            autoFocus
+                        />
+                        <div className="flex gap-2">
+                            <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={!message.trim() || sending}
+                                className="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                <MessageSquare className="h-4 w-4" />
+                                {sending ? "Sending…" : "Send & Open Chat"}
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </>

@@ -7,7 +7,6 @@ use App\Models\User;
 use App\Models\Vacancy;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Hash;
 
 class JobSystemSeeder extends Seeder
 {
@@ -25,7 +24,7 @@ class JobSystemSeeder extends Seeder
             );
 
             $admin->forceFill([
-                'password' => 'Admin@123',
+                'password' => bcrypt('Admin@123'),
                 'email_verified_at' => $admin->email_verified_at ?? now(),
             ])->save();
 

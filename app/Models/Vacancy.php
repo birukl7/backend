@@ -15,6 +15,7 @@ class Vacancy extends Model
         'title',
         'description',
         'requirements',
+        'tags',
         'location',
         'salary_min',
         'salary_max',
@@ -22,16 +23,48 @@ class Vacancy extends Model
         'status',
         'work_type',
         'application_deadline',
+        'moderation_status',
+        'is_archived',
+        'is_flagged_suspicious',
+        'moderation_notes',
+        'moderated_at',
+        'moderated_by',
     ];
 
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
+    protected $casts = [
+        'tags'                 => 'array',
+        'application_deadline' => 'date',
+        'is_archived'          => 'boolean',
+        'is_flagged_suspicious' => 'boolean',
+        'moderated_at'         => 'datetime',
+    ];
+
+    protected $appends = ['is_expired'];
 
     public function applications()
     {
         return $this->hasMany(Application::class);
+    }
+
+    /**
+     * The employer (poster) of this vacancy.
+     */
+    public function employer()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function user()
+    {
+        return $this->employer();
+    }
+
+    /**
+     * Applications that resulted in a hire for this vacancy.
+     */
+    public function hires()
+    {
+        return $this->hasMany(Application::class)->where('status', 'hired');
     }
 
     public function screening()
@@ -42,5 +75,27 @@ class Vacancy extends Model
     public function screeningResponses()
     {
         return $this->hasMany(ScreeningResponse::class);
+    }
+
+    /**
+     * Only vacancies whose application deadline has not passed yet.
+     */
+    public function scopeActive($query)
+    {
+        return $query->whereNotNull('application_deadline')
+            ->whereDate('application_deadline', '>=', now()->toDateString());
+    }
+
+    /**
+     * A vacancy is considered closed once its deadline has passed.
+     */
+    public function getIsExpiredAttribute(): bool
+    {
+        if (! $this->application_deadline) {
+            return false;
+        }
+
+        return $this->application_deadline->isPast()
+            && ! $this->application_deadline->isToday();
     }
 }

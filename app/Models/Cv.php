@@ -9,13 +9,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Cv extends Model
 {
     protected $fillable = [
-        'user_id', 'title', 'is_default',
+        'user_id', 'title', 'is_default', 'source',
+        'file_path', 'original_filename', 'mime_type', 'extracted_text', 'extracted_at',
         'full_name', 'email', 'phone', 'location', 'website', 'linkedin', 'github', 'summary',
         'template', 'accent_color', 'section_order', 'photo_path',
         'ai_summary', 'ai_suggestions', 'ai_improvements', 'ai_strength_score', 'ai_summary_generated_at',
+        'summary_approval_status', 'summary_moderation_notes', 'summary_moderated_at', 'summary_moderated_by',
     ];
 
-    protected $appends = ['photo_url'];
+    protected $appends = ['photo_url', 'file_url'];
 
     protected $casts = [
         'is_default'              => 'boolean',
@@ -24,11 +26,23 @@ class Cv extends Model
         'ai_improvements'         => 'array',
         'ai_strength_score'       => 'integer',
         'ai_summary_generated_at' => 'datetime',
+        'extracted_at'            => 'datetime',
+        'summary_moderated_at'    => 'datetime',
     ];
 
     public function getPhotoUrlAttribute(): ?string
     {
         return $this->photo_path ? asset('storage/' . $this->photo_path) : null;
+    }
+
+    public function getFileUrlAttribute(): ?string
+    {
+        return $this->file_path ? asset('storage/' . $this->file_path) : null;
+    }
+
+    public function isUpload(): bool
+    {
+        return $this->source === 'upload';
     }
 
     public function user(): BelongsTo

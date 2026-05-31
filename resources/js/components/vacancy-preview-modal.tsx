@@ -12,6 +12,7 @@
 
 import { useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import { VerificationBadges } from '@/components/verification-badges';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,15 @@ interface Vacancy {
     work_type: 'remote' | 'on_site' | 'hybrid';
     application_deadline: string | null;
     created_at: string;
+    is_expired?: boolean;
+    employer?: {
+        id: number;
+        name: string;
+        company_name: string | null;
+        employer_type?: 'basic' | 'company' | null;
+        employer_verification_status?: string | null;
+        company_verification_status?: string | null;
+    } | null;
 }
 
 interface UserCv {
@@ -40,6 +50,8 @@ interface UserCv {
     title: string;
     full_name: string | null;
     is_default: boolean;
+    source?: 'builder' | 'upload';
+    original_filename?: string | null;
 }
 
 interface PreviewData {
@@ -346,10 +358,10 @@ function ApplyDialog({
                                             No CVs found
                                         </p>
                                         <p className="mb-5 text-[13px] text-slate-400">
-                                            Create a CV before applying
+                                            Create or upload a CV before applying
                                         </p>
                                         <a
-                                            href="/cv/create"
+                                            href="/cv"
                                             className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                                         >
                                             Create a CV
@@ -396,8 +408,18 @@ function ApplyDialog({
                                                                 {cv.full_name}
                                                             </p>
                                                         )}
+                                                        {cv.source === 'upload' && cv.original_filename && (
+                                                            <p className="mt-0.5 text-[11px] text-slate-400">
+                                                                {cv.original_filename}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     <div className="flex shrink-0 items-center gap-2">
+                                                        {cv.source === 'upload' && (
+                                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                                                                UPLOAD
+                                                            </span>
+                                                        )}
                                                         {cv.is_default && (
                                                             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
                                                                 DEFAULT
@@ -823,6 +845,7 @@ export function VacancyPreviewModal({
         ? daysUntil(vacancy.application_deadline)
         : null;
     const isUrgent = deadline !== null && deadline <= 5 && deadline >= 0;
+    const isExpired = vacancy.is_expired ?? (deadline !== null && deadline < 0);
 
     return (
         <>
@@ -872,6 +895,14 @@ export function VacancyPreviewModal({
                                 <h2 className="text-xl leading-snug font-bold text-slate-900">
                                     {vacancy.title}
                                 </h2>
+                                {vacancy.employer?.company_name && (
+                                    <p className="mt-1 text-sm font-medium text-slate-600">
+                                        {vacancy.employer.company_name}
+                                    </p>
+                                )}
+                                <div className="mt-2">
+                                    <VerificationBadges employer={vacancy.employer} />
+                                </div>
                                 {vacancy.location && (
                                     <p className="mt-1 flex items-center gap-1 text-sm text-slate-400">
                                         <svg
@@ -902,11 +933,9 @@ export function VacancyPreviewModal({
                                 {EMPLOYMENT_LABELS[vacancy.employment_type]}
                             </span>
                             <span
-                                className={`rounded-full border px-3 py-1 text-[12px] font-medium ${vacancy.status === 'open' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}
+                                className={`rounded-full border px-3 py-1 text-[12px] font-medium ${!isExpired ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}
                             >
-                                {vacancy.status === 'open'
-                                    ? '● Open'
-                                    : 'Closed'}
+                                {!isExpired ? '● Open' : 'Closed'}
                             </span>
                         </div>
                     </div>
@@ -1021,7 +1050,7 @@ export function VacancyPreviewModal({
                             </svg>
                             Already Applied
                         </div>
-                    ) : vacancy.status !== 'open' ? (
+                    ) : isExpired ? (
                         <div className="flex flex-1 items-center justify-center rounded-xl bg-slate-100 py-3 text-sm font-semibold text-slate-400">
                             Applications Closed
                         </div>

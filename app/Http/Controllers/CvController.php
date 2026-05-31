@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiMatch;
 use App\Models\Cv;
 use App\Models\CvExperience;
 use App\Models\CvEducation;
 use App\Models\CvSkill;
 use App\Models\CvProject;
 use App\Services\AiCvSummaryService;
+use App\Services\CvTextExtractorService;
+use App\Support\PhpIniSize;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -47,11 +50,69 @@ class CvController extends Controller
             'user_id'       => auth()->id(),
             'title'         => $data['title'],
             'template'      => $data['template'] ?? 'classic',
+            'source'        => 'builder',
             'is_default'    => false,
             'section_order' => ['experience', 'education', 'skills', 'projects'],
         ]);
 
         return redirect()->route('cv.show', $cv->id);
+    }
+
+    public function upload(Request $request)
+    {
+        \Illuminate\Support\Facades\Log::debug('CV Upload debug', [
+            'content_type' => $request->header('Content-Type'),
+            'has_file'     => $request->hasFile('file'),
+            'files_raw'    => $_FILES,
+            'input_keys'   => array_keys($request->all()),
+        ]);
+
+        // If PHP silently dropped the file (upload exceeded upload_max_filesize),
+        // hasFile returns false even though the field was submitted.
+        if (! $request->hasFile('file') && $request->isMethod('post')) {
+            $maxLabel = PhpIniSize::uploadMaxLabel();
+            return back()->withErrors([
+                'file' => "The file could not be received by the server. Make sure it is under {$maxLabel}.",
+            ]);
+        }
+
+        $maxKb = max(PhpIniSize::uploadMaxKilobytes(), 20480);
+
+        $data = $request->validate([
+            'file'  => ['required', 'file', 'max:'.$maxKb, 'mimes:pdf,docx'],
+            'title' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $file = $request->file('file');
+
+        $path = $file->store('cv-uploads', 'public');
+        $title = $data['title'] ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+
+        $cv = Cv::create([
+            'user_id'           => auth()->id(),
+            'title'             => $title,
+            'source'            => 'upload',
+            'file_path'         => $path,
+            'original_filename' => $file->getClientOriginalName(),
+            'mime_type'         => $file->getMimeType(),
+            'is_default'        => ! Cv::where('user_id', auth()->id())->exists(),
+        ]);
+
+        app(CvTextExtractorService::class)->extractAndPersist($cv);
+
+        return redirect()->route('cv.index')->with('success', 'CV uploaded successfully.');
+    }
+
+    public function download($id)
+    {
+        $cv = Cv::where('user_id', auth()->id())->findOrFail($id);
+
+        abort_if($cv->source !== 'upload' || ! $cv->file_path, 404);
+
+        return Storage::disk('public')->download(
+            $cv->file_path,
+            $cv->original_filename ?? 'cv.pdf'
+        );
     }
 
     public function show($id)
@@ -60,7 +121,11 @@ class CvController extends Controller
             ->where('user_id', auth()->id())
             ->findOrFail($id);
 
-        return Inertia::render('CV/show', ['cv' => $cv]);
+        if ($cv->source === 'upload') {
+            return redirect()->route('cv.download', $cv->id);
+        }
+
+        return Inertia::render('CV/Show', ['cv' => $cv]);
     }
 
     public function update(Request $request, $id)
@@ -95,7 +160,15 @@ class CvController extends Controller
             Storage::disk('public')->delete($cv->photo_path);
         }
 
+        if ($cv->file_path) {
+            Storage::disk('public')->delete($cv->file_path);
+        }
+
+        $userId = $cv->user_id;
         $cv->delete();
+
+        AiMatch::where('user_id', $userId)->delete();
+
         return redirect()->route('cv.index');
     }
 

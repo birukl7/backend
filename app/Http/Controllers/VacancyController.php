@@ -5,10 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\AiMatch;
 use App\Models\AppNotification;
 use App\Models\Application;
+use App\Models\Cv;
+use App\Models\Interview;
 use App\Models\JobScreening;
+use App\Models\Shortlist;
 use App\Models\Vacancy;
+use App\Services\AiMatchingService;
 use App\Services\AiScreeningService;
+use App\Services\HiringStatsService;
+use App\Services\TelegramService;
+use App\Support\VacancyMatchPresenter;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class VacancyController extends Controller
 {
@@ -18,22 +26,119 @@ class VacancyController extends Controller
     public function index()
     {
         $vacancies = Vacancy::where('user_id', auth()->id())
+            ->withCount(['applications', 'hires'])
             ->latest()
             ->get();
 
         return inertia('employer/jobs/index', [
-            'vacancies' => $vacancies,
+            'vacancies'    => $vacancies,
+            'hiring_stats' => app(HiringStatsService::class)->forEmployer(auth()->id()),
         ]);
     }
 
     /**
-     * Job seekers: list all open vacancies.
+     * Public job board — visible to everyone (guests included).
+     * Only shows vacancies whose application deadline has not passed.
+     *
+     * For authenticated job seekers we additionally compute AI match scores,
+     * which CVs they can apply with, and their sidebar stats. Each vacancy is
+     * enriched with the posting employer's hiring history so applicants can see
+     * the employer's track record before applying.
      */
-    public function browse()
+    public function browse(AiMatchingService $aiService, HiringStatsService $hiringStats)
     {
+        $userId = auth()->id();
+
+        $vacancies = Vacancy::active()
+            ->with([
+                'screening:id,vacancy_id,is_enabled',
+                'employer:id,name,company_name,company_website,created_at,employer_type,employer_verification_status,company_verification_status',
+            ])
+            ->latest()
+            ->get();
+
+        // Attach the employer's hiring history to each vacancy (batched per
+        // unique employer to avoid N+1 queries).
+        $employerStats = $vacancies->pluck('user_id')->unique()->mapWithKeys(
+            fn ($id) => [$id => $hiringStats->forEmployer($id)]
+        );
+
+        $vacancies = $vacancies->map(function ($v) use ($employerStats) {
+            $v->screening_required = (bool) optional($v->screening)->is_enabled;
+            unset($v->screening);
+            $v->employer_stats = $employerStats[$v->user_id] ?? null;
+            return $v;
+        });
+
+        // Guests get the public board only — no personalised data.
+        if (! $userId) {
+            return inertia('vacancy/index', [
+                'vacancies'          => $vacancies,
+                'is_authenticated'   => false,
+                'applied_ids'        => [],
+                'saved_ids'          => [],
+                'user_cvs'           => [],
+                'ai_matches'         => [],
+                'sidebar_stats'      => null,
+                'profile_completion' => 0,
+            ]);
+        }
+
+        $vacancyData = $vacancies->map(fn ($v) => [
+            'id'           => $v->id,
+            'title'        => $v->title,
+            'description'  => $v->description,
+            'requirements' => $v->requirements,
+            'tags'         => $v->tags,
+        ])->toArray();
+
+        $aiMatches = $aiService->matchForUser($userId, $vacancyData);
+
+        if ($aiMatches === [] && Cv::where('user_id', $userId)->exists() && $vacancyData !== []) {
+            Log::warning('Job board AI matches empty for user with CV', [
+                'user_id'         => $userId,
+                'ai_matching_url' => config('services.ai_matching.url'),
+                'vacancy_count'   => count($vacancyData),
+            ]);
+        }
+
+        $vacancies = VacancyMatchPresenter::attach($vacancies, $aiMatches);
+
+        $aiMatchingHint = $aiMatches === [] ? $aiService->hintForUser($userId) : null;
+
         return inertia('vacancy/index', [
-            'vacancies' => Vacancy::where('status', 'open')->latest()->get(),
+            'vacancies'        => $vacancies,
+            'is_authenticated' => true,
+            'applied_ids'      => Application::where('user_id', $userId)->pluck('vacancy_id'),
+            'saved_ids'        => Shortlist::where('user_id', $userId)->pluck('vacancy_id'),
+            'user_cvs'         => Cv::where('user_id', $userId)
+                                     ->select('id', 'title', 'full_name', 'is_default', 'source', 'original_filename')
+                                     ->get(),
+            'ai_matches'         => VacancyMatchPresenter::forInertia($aiMatches),
+            'ai_matching_hint'   => $aiMatchingHint,
+            'ai_matching_debug'  => config('app.debug') ? $aiService->diagnose($userId, $vacancyData) : null,
+            'sidebar_stats'      => [
+                'applied'       => Application::where('user_id', $userId)->count(),
+                'interviews'    => Interview::where('job_seeker_id', $userId)->count(),
+                'skills_earned' => \App\Models\AssessmentResult::where('user_id', $userId)
+                                       ->where('passed', true)
+                                       ->distinct('assessment_id')
+                                       ->count('assessment_id'),
+                'cvs_count'     => Cv::where('user_id', $userId)->count(),
+                'saved'         => Shortlist::where('user_id', $userId)->count(),
+            ],
+            'profile_completion' => $this->profileCompletion($userId),
         ]);
+    }
+
+    /**
+     * Rough profile-completion score (0–100) used by the job board sidebar.
+     */
+    private function profileCompletion(int $userId): int
+    {
+        $hasCv = Cv::where('user_id', $userId)->exists();
+
+        return $hasCv ? 100 : 70;
     }
 
     public function create()
@@ -48,18 +153,25 @@ class VacancyController extends Controller
             'title'                => 'required|string|max:255',
             'description'          => 'required|string',
             'requirements'         => 'nullable|string',
+            'tags'                 => 'nullable|array|max:20',
+            'tags.*'               => 'string|max:40',
             'location'             => 'nullable|string|max:255',
             'salary_min'           => 'nullable|numeric|min:0',
             'salary_max'           => 'nullable|numeric|min:0|gte:salary_min',
             'employment_type'      => 'required|in:full_time,part_time,contract,temporary,internship',
-            'status'               => 'required|in:open,closed',
             'work_type'            => 'required|in:remote,on_site,hybrid',
-            'application_deadline' => 'nullable|date|after:today',
+            'application_deadline' => 'required|date|after:today',
         ]);
 
         $data['user_id'] = auth()->id();
+        // Vacancies are always open on creation; availability is driven by the
+        // application deadline rather than a manual open/closed toggle.
+        $data['status']  = 'open';
 
-        Vacancy::create($data);
+        $vacancy = Vacancy::create($data);
+
+        // Notify Telegram channel – fire-and-forget (failures are logged, not thrown)
+        app(TelegramService::class)->notifyNewJob($vacancy);
 
         return back()->with('success', 'Job posted successfully.');
     }
@@ -83,13 +195,14 @@ class VacancyController extends Controller
             'title'                => 'required|string|max:255',
             'description'          => 'required|string',
             'requirements'         => 'nullable|string',
+            'tags'                 => 'nullable|array|max:20',
+            'tags.*'               => 'string|max:40',
             'location'             => 'nullable|string|max:255',
             'salary_min'           => 'nullable|numeric|min:0',
             'salary_max'           => 'nullable|numeric|min:0|gte:salary_min',
             'employment_type'      => 'required|in:full_time,part_time,contract,temporary,internship',
-            'status'               => 'required|in:open,closed',
             'work_type'            => 'required|in:remote,on_site,hybrid',
-            'application_deadline' => 'nullable|date',
+            'application_deadline' => 'required|date',
         ]);
 
         $vacancy->update($data);

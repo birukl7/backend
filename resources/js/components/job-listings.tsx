@@ -1,9 +1,21 @@
 import { usePage, useForm, router, Link } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ScreeningChat from '@/components/screening-chat';
 import { DashboardWelcome } from '@/components/dashboard-welcome';
+import { VerificationBadges, isEmployerVerified } from '@/components/verification-badges';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface EmployerStats {
+    employer_id: number;
+    employer_name: string | null;
+    total_jobs: number;
+    total_applications: number;
+    total_hires: number;
+    hires_last_30_days: number;
+    hire_rate: number;
+    member_since: string | null;
+}
 
 interface Vacancy {
     id: number;
@@ -11,6 +23,7 @@ interface Vacancy {
     title: string;
     description: string;
     requirements: string | null;
+    tags?: string[] | null;
     location: string | null;
     salary_min: string | null;
     salary_max: string | null;
@@ -26,6 +39,42 @@ interface Vacancy {
     created_at: string;
     updated_at: string;
     screening_required?: boolean;
+    is_expired?: boolean;
+    employer_stats?: EmployerStats | null;
+    employer?: {
+        id: number;
+        name: string;
+        company_name: string | null;
+        company_website: string | null;
+        employer_type?: 'basic' | 'company' | null;
+        employer_verification_status?: string | null;
+        company_verification_status?: string | null;
+    } | null;
+    match_score?: number | null;
+}
+
+/** Resolve AI match score from vacancy prop or ai_matches map (handles string/number keys). */
+function lookupMatchScore(
+    ai_matches: Record<string | number, number>,
+    vacancy: Vacancy,
+): number | undefined {
+    if (vacancy.match_score != null && !Number.isNaN(vacancy.match_score)) {
+        return vacancy.match_score;
+    }
+
+    const id = vacancy.id;
+
+    if (ai_matches[id] !== undefined) {
+        return ai_matches[id];
+    }
+
+    const asString = String(id);
+
+    if (ai_matches[asString] !== undefined) {
+        return ai_matches[asString];
+    }
+
+    return undefined;
 }
 
 interface UserCv {
@@ -33,6 +82,8 @@ interface UserCv {
     title: string;
     full_name: string | null;
     is_default: boolean;
+    source?: 'builder' | 'upload';
+    original_filename?: string | null;
 }
 
 interface AuthUser {
@@ -47,15 +98,21 @@ interface SidebarStats {
     interviews: number;
     skills_earned: number;
     cvs_count: number;
+    saved?: number;
 }
 
 interface Props {
     vacancies: Vacancy[];
     applied_ids?: number[];
+    saved_ids?: number[];
     user_cvs?: UserCv[];
     ai_matches?: Record<number, number>; // vacancy_id -> score (0.0 – 1.0)
-    sidebar_stats?: SidebarStats;
+    ai_matching_hint?: string | null;
+    ai_matching_debug?: Record<string, unknown> | null;
+    sidebar_stats?: SidebarStats | null;
     profile_completion?: number; // 0–100
+    is_authenticated?: boolean;
+    pageMode?: 'board' | 'saved';
 }
 
 // ─── Label maps ───────────────────────────────────────────────────────────────
@@ -112,6 +169,18 @@ function timeAgo(dateStr: string): string {
 
 function daysUntil(dateStr: string): number {
     return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+}
+
+function salaryMinValue(min: string | null, max: string | null): number | null {
+    if (min) return parseFloat(min);
+    if (max) return parseFloat(max);
+    return null;
+}
+
+function salaryMaxValue(min: string | null, max: string | null): number | null {
+    if (max) return parseFloat(max);
+    if (min) return parseFloat(min);
+    return null;
 }
 
 // ─── Apply Dialog ─────────────────────────────────────────────────────────────
@@ -390,8 +459,7 @@ function ApplyDialog({
                                             No CVs found
                                         </p>
                                         <p className="mb-5 text-[13px] text-slate-400">
-                                            You need to create a CV before
-                                            applying
+                                            Create or upload a CV before applying
                                         </p>
                                         <a
                                             href="/cv"
@@ -453,8 +521,18 @@ function ApplyDialog({
                                                                 {cv.full_name}
                                                             </p>
                                                         )}
+                                                        {cv.source === 'upload' && cv.original_filename && (
+                                                            <p className="mt-0.5 text-[11px] text-slate-400">
+                                                                {cv.original_filename}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     <div className="flex shrink-0 items-center gap-2">
+                                                        {cv.source === 'upload' && (
+                                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                                                                UPLOAD
+                                                            </span>
+                                                        )}
                                                         {cv.is_default && (
                                                             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
                                                                 DEFAULT
@@ -873,11 +951,7 @@ function ProfileSidebar({
     ];
 
     const completionColor =
-        profileCompletion >= 80
-            ? 'bg-emerald-500'
-            : profileCompletion >= 50
-              ? 'bg-blue-500'
-              : 'bg-amber-400';
+        profileCompletion >= 100 ? 'bg-emerald-500' : 'bg-blue-500';
 
     return (
         <aside className="w-60 shrink-0 space-y-3">
@@ -907,7 +981,7 @@ function ProfileSidebar({
                     <div className="mt-3">
                         <div className="mb-1 flex items-center justify-between">
                             <Link
-                                href="/cv/create"
+                                href="/cv"
                                 className="text-[11px] text-slate-500 underline underline-offset-2 transition-colors hover:text-slate-700"
                             >
                                 {profileCompletion < 100
@@ -915,13 +989,7 @@ function ProfileSidebar({
                                     : 'Profile complete'}
                             </Link>
                             <span
-                                className={`text-[11px] font-bold ${
-                                    profileCompletion >= 80
-                                        ? 'text-emerald-600'
-                                        : profileCompletion >= 50
-                                          ? 'text-blue-600'
-                                          : 'text-amber-600'
-                                }`}
+                                className={`text-[11px] font-bold ${profileCompletion >= 100 ? 'text-emerald-600' : 'text-blue-600'}`}
                             >
                                 {profileCompletion}%
                             </span>
@@ -1007,6 +1075,27 @@ function ProfileSidebar({
                                 <path
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
+                                    d="M2.5 2.5h11v12l-5.5-3-5.5 3z"
+                                />
+                            </svg>
+                        ),
+                        label: 'Saved Jobs',
+                        sub: 'Roles you bookmarked',
+                        href: '/saved-jobs',
+                        color: 'text-amber-600 bg-amber-50',
+                    },
+                    {
+                        icon: (
+                            <svg
+                                className="h-4 w-4"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
                                     d="M2 12h12M2 8h12M2 4h8"
                                 />
                             </svg>
@@ -1053,24 +1142,170 @@ function ProfileSidebar({
     );
 }
 
+// ─── Tag list ─────────────────────────────────────────────────────────────────
+
+function TagList({
+    tags,
+    max,
+    onToggle,
+    active = [],
+}: {
+    tags: string[];
+    max?: number;
+    onToggle?: (tag: string) => void;
+    active?: string[];
+}) {
+    const shown = max ? tags.slice(0, max) : tags;
+    const extra = max && tags.length > max ? tags.length - max : 0;
+
+    return (
+        <div className="flex flex-wrap gap-1.5">
+            {shown.map((tag) => {
+                const isActive = active.includes(tag);
+                return (
+                    <span
+                        key={tag}
+                        onClick={
+                            onToggle
+                                ? (e) => {
+                                      e.stopPropagation();
+                                      onToggle(tag);
+                                  }
+                                : undefined
+                        }
+                        className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                            onToggle ? 'cursor-pointer' : ''
+                        } ${
+                            isActive
+                                ? 'border-indigo-300 bg-indigo-600 text-white'
+                                : 'border-indigo-100 bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                        }`}
+                    >
+                        #{tag}
+                    </span>
+                );
+            })}
+            {extra > 0 && (
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-400">
+                    +{extra}
+                </span>
+            )}
+        </div>
+    );
+}
+
+// ─── Employer hiring history ────────────────────────────────────────────────
+
+function EmployerHistoryCard({ stats }: { stats: EmployerStats }) {
+    const metrics = [
+        {
+            label: 'Total hires',
+            value: stats.total_hires,
+            color: 'text-emerald-600',
+        },
+        {
+            label: 'Jobs posted',
+            value: stats.total_jobs,
+            color: 'text-blue-600',
+        },
+        {
+            label: 'Hire rate',
+            value: `${stats.hire_rate}%`,
+            color: 'text-violet-600',
+        },
+    ];
+
+    return (
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
+            <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
+                        <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                        </svg>
+                    </span>
+                    <h3 className="text-[13px] font-bold text-slate-800">
+                        Employer hiring history
+                    </h3>
+                </div>
+                {stats.employer_name && (
+                    <span className="max-w-[140px] truncate text-[12px] font-medium text-slate-400">
+                        {stats.employer_name}
+                    </span>
+                )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+                {metrics.map((m) => (
+                    <div
+                        key={m.label}
+                        className="rounded-xl border border-slate-100 bg-white px-2 py-2.5 text-center"
+                    >
+                        <p className={`text-lg font-bold ${m.color}`}>
+                            {m.value}
+                        </p>
+                        <p className="text-[10px] tracking-wide text-slate-400 uppercase">
+                            {m.label}
+                        </p>
+                    </div>
+                ))}
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400">
+                <span>
+                    {stats.total_hires > 0
+                        ? `${stats.hires_last_30_days} hired in the last 30 days`
+                        : 'No hires recorded yet'}
+                </span>
+                {stats.member_since && (
+                    <span>
+                        Hiring since{' '}
+                        {new Date(stats.member_since).getFullYear()}
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // ─── Job Detail Drawer ────────────────────────────────────────────────────────
 
 function JobDrawer({
     vacancy,
     hasApplied,
+    isAuthenticated,
+    isSaved,
+    savingBookmark,
     onClose,
     onApply,
+    onToggleSave,
 }: {
     vacancy: Vacancy;
     hasApplied: boolean;
+    isAuthenticated: boolean;
+    isSaved: boolean;
+    savingBookmark: boolean;
     onClose: () => void;
     onApply: () => void;
+    onToggleSave: () => void;
 }) {
     const salary = formatSalary(vacancy.salary_min, vacancy.salary_max);
     const deadline = vacancy.application_deadline
         ? daysUntil(vacancy.application_deadline)
         : null;
     const isUrgent = deadline !== null && deadline <= 5 && deadline >= 0;
+    const isExpired = vacancy.is_expired ?? (deadline !== null && deadline < 0);
+    const tags = vacancy.tags ?? [];
 
     return (
         <>
@@ -1107,6 +1342,14 @@ function JobDrawer({
                                 <h2 className="text-xl leading-snug font-bold text-slate-900">
                                     {vacancy.title}
                                 </h2>
+                                {vacancy.employer?.company_name && (
+                                    <p className="mt-1 text-sm font-medium text-slate-600">
+                                        {vacancy.employer.company_name}
+                                    </p>
+                                )}
+                                <div className="mt-2">
+                                    <VerificationBadges employer={vacancy.employer} />
+                                </div>
                                 {vacancy.location && (
                                     <p className="mt-1 flex items-center gap-1 text-sm text-slate-400">
                                         <svg
@@ -1136,14 +1379,13 @@ function JobDrawer({
                             >
                                 {EMPLOYMENT_LABELS[vacancy.employment_type]}
                             </span>
-                            <span
-                                className={`rounded-full border px-3 py-1 text-[12px] font-medium ${vacancy.status === 'open' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}
-                            >
-                                {vacancy.status === 'open'
-                                    ? '● Open'
-                                    : 'Closed'}
-                            </span>
                         </div>
+
+                        {tags.length > 0 && (
+                            <div className="mt-3">
+                                <TagList tags={tags} />
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -1232,11 +1474,30 @@ function JobDrawer({
                             </p>
                         </div>
                     )}
+
+                    {/* Employer hiring history — builds trust before applying */}
+                    {vacancy.employer_stats && (
+                        <EmployerHistoryCard stats={vacancy.employer_stats} />
+                    )}
                 </div>
 
                 {/* Sticky footer with Apply button */}
                 <div className="flex gap-3 border-t border-slate-100 bg-white px-6 py-4">
-                    {hasApplied ? (
+                    {!isAuthenticated ? (
+                        <button
+                            onClick={onApply}
+                            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                        >
+                            Log in to Apply
+                            <svg
+                                className="h-4 w-4"
+                                viewBox="0 0 16 16"
+                                fill="currentColor"
+                            >
+                                <path d="M1.5 2.5l13 5.5-13 5.5V9l9-1-9-1V2.5z" />
+                            </svg>
+                        </button>
+                    ) : hasApplied ? (
                         <div className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 py-3 text-sm font-semibold text-emerald-700">
                             <svg
                                 className="h-4 w-4"
@@ -1249,7 +1510,7 @@ function JobDrawer({
                             </svg>
                             Already Applied
                         </div>
-                    ) : vacancy.status !== 'open' ? (
+                    ) : isExpired ? (
                         <div className="flex flex-1 items-center justify-center rounded-xl bg-slate-100 py-3 text-sm font-semibold text-slate-400">
                             Applications Closed
                         </div>
@@ -1268,21 +1529,37 @@ function JobDrawer({
                             </svg>
                         </button>
                     )}
-                    <button className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600">
-                        <svg
-                            className="h-4 w-4"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
+                    {isAuthenticated && (
+                        <button
+                            type="button"
+                            onClick={onToggleSave}
+                            disabled={savingBookmark}
+                            title={
+                                isSaved
+                                    ? 'Remove from saved jobs'
+                                    : 'Save job for later'
+                            }
+                            className={`flex h-12 w-12 items-center justify-center rounded-xl border transition-colors disabled:opacity-50 ${
+                                isSaved
+                                    ? 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100'
+                                    : 'border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                            }`}
                         >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M2.5 2.5h11v12l-5.5-3-5.5 3z"
-                            />
-                        </svg>
-                    </button>
+                            <svg
+                                className="h-4 w-4"
+                                viewBox="0 0 16 16"
+                                fill={isSaved ? 'currentColor' : 'none'}
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M2.5 2.5h11v12l-5.5-3-5.5 3z"
+                                />
+                            </svg>
+                        </button>
+                    )}
                 </div>
             </div>
         </>
@@ -1307,7 +1584,7 @@ function JobCard({
         ? daysUntil(vacancy.application_deadline)
         : null;
     const isUrgent = deadline !== null && deadline <= 5 && deadline >= 0;
-    const isExpired = deadline !== null && deadline < 0;
+    const tags = vacancy.tags ?? [];
 
     return (
         <div
@@ -1323,6 +1600,12 @@ function JobCard({
                         <h3 className="truncate text-[15px] leading-snug font-semibold text-slate-900 transition-colors group-hover:text-blue-600">
                             {vacancy.title}
                         </h3>
+                        {vacancy.employer?.company_name && (
+                            <p className="mt-0.5 truncate text-[12px] font-medium text-slate-500">
+                                {vacancy.employer.company_name}
+                            </p>
+                        )}
+                        <VerificationBadges employer={vacancy.employer} />
                         {vacancy.location && (
                             <p className="mt-0.5 flex items-center gap-1 text-[12px] text-slate-400">
                                 <svg
@@ -1368,16 +1651,6 @@ function JobCard({
                             Applied
                         </span>
                     )}
-                    {vacancy.status === 'open' && !isExpired ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            Open
-                        </span>
-                    ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-400">
-                            Closed
-                        </span>
-                    )}
                 </div>
             </div>
 
@@ -1401,7 +1674,36 @@ function JobCard({
                         {vacancy.requirements}
                     </span>
                 )}
+                {vacancy.employer_stats && (
+                    <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                            vacancy.employer_stats.total_hires > 0
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
+                                : 'border-slate-200 bg-slate-50 text-slate-500'
+                        }`}
+                    >
+                        <svg
+                            className="h-3 w-3"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                        >
+                            <path strokeLinecap="round" d="M2 8l4 4 8-8" />
+                        </svg>
+                        {vacancy.employer_stats.total_hires}{' '}
+                        {vacancy.employer_stats.total_hires === 1
+                            ? 'hire'
+                            : 'hires'}
+                    </span>
+                )}
             </div>
+
+            {tags.length > 0 && (
+                <div className="mb-4">
+                    <TagList tags={tags} max={4} />
+                </div>
+            )}
 
             <div className="flex items-center justify-between border-t border-slate-100 pt-3">
                 <div>
@@ -1435,79 +1737,367 @@ function JobCard({
     );
 }
 
+// ─── Guest (unauthenticated) UI ───────────────────────────────────────────────
+
+function GuestSidebar() {
+    return (
+        <aside className="w-60 shrink-0 space-y-3">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+                    <svg
+                        className="h-6 w-6"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a7.5 7.5 0 0115 0"
+                        />
+                    </svg>
+                </div>
+                <h2 className="text-[14px] font-bold text-slate-900">
+                    Join to apply
+                </h2>
+                <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+                    Create an account to apply for jobs, get AI recommendations,
+                    and track your applications.
+                </p>
+                <a
+                    href="/register"
+                    className="mt-4 block rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                >
+                    Sign up
+                </a>
+                <a
+                    href="/login"
+                    className="mt-2 block rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                    Log in
+                </a>
+            </div>
+            <Link
+                href="/hiring-statistics"
+                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 transition-colors hover:bg-slate-50"
+            >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                    <svg
+                        className="h-4 w-4"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M2 13h12M4 13V7M8 13V3M12 13V9"
+                        />
+                    </svg>
+                </span>
+            </Link>
+        </aside>
+    );
+}
+
+function GuestHero({ count }: { count: number }) {
+    return (
+        <div className="relative overflow-hidden rounded-2xl border border-blue-200/80 bg-gradient-to-br from-blue-50 via-white to-emerald-50 px-5 py-6 sm:px-6">
+            <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-blue-700 uppercase">
+                Job board
+            </span>
+            <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                Find your next opportunity
+            </h1>
+            <p className="mt-1 text-sm font-medium text-blue-700/90">
+                Browse open roles from employers actively hiring.
+            </p>
+            <p className="mt-2 text-sm text-slate-500">
+                {count} {count === 1 ? 'position' : 'positions'} available · log
+                in to apply.
+            </p>
+        </div>
+    );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 type FilterWorkType = 'all' | Vacancy['work_type'];
 type FilterEmployment = 'all' | Vacancy['employment_type'];
+type FilterDeadline = 'all' | 'urgent' | 'closing_soon';
+type SortOption =
+    | 'newest'
+    | 'salary_high'
+    | 'salary_low'
+    | 'deadline_soon'
+    | 'match_score';
 
 export default function JobListings({
     vacancies,
     applied_ids = [],
+    saved_ids = [],
     user_cvs = [],
     ai_matches = {},
+    ai_matching_hint = null,
+    ai_matching_debug = null,
     sidebar_stats,
     profile_completion = 0,
+    is_authenticated = true,
+    pageMode = 'board',
 }: Props) {
-    const { auth } = usePage<{ auth: { user: AuthUser } }>().props;
+    const { auth } = usePage<{ auth: { user: AuthUser | null } }>().props;
     const user = auth.user;
+    const isAuthenticated = is_authenticated && !!user;
+    const retriedAiMatches = useRef(false);
+
+    // If the user has a CV but the first request returned no scores (timeout, config), retry once.
+    useEffect(() => {
+        if (
+            retriedAiMatches.current ||
+            !isAuthenticated ||
+            user_cvs.length === 0 ||
+            vacancies.length === 0
+        ) {
+            return;
+        }
+
+        const hasAnyScore = vacancies.some(
+            (v) => lookupMatchScore(ai_matches, v) !== undefined,
+        );
+
+        if (hasAnyScore) {
+            return;
+        }
+
+        retriedAiMatches.current = true;
+
+        router.reload({
+            only: ['vacancies', 'ai_matches'],
+            preserveScroll: true,
+        });
+    }, [isAuthenticated, user_cvs.length, vacancies.length, ai_matches]);
 
     const [search, setSearch] = useState('');
     const [workType, setWorkType] = useState<FilterWorkType>('all');
     const [employment, setEmployment] = useState<FilterEmployment>('all');
-    const [showOpenOnly, setShowOpenOnly] = useState(false);
+    const [locationFilter, setLocationFilter] = useState('');
+    const [salaryMin, setSalaryMin] = useState('');
+    const [salaryMax, setSalaryMax] = useState('');
+    const [verifiedOnly, setVerifiedOnly] = useState(false);
+    const [deadlineFilter, setDeadlineFilter] = useState<FilterDeadline>('all');
+    const [minMatchPct, setMinMatchPct] = useState('');
+    const [sortBy, setSortBy] = useState<SortOption>('newest');
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [selected, setSelected] = useState<Vacancy | null>(null);
     const [applying, setApplying] = useState<Vacancy | null>(null);
     const [screening, setScreening] = useState<Vacancy | null>(null);
-    const [activeTab, setActiveTab] = useState<'all' | 'recommended'>('all');
+    const [activeTab, setActiveTab] = useState<
+        'all' | 'recommended' | 'saved'
+    >('all');
 
     // Track applied IDs locally so the UI updates after submission without a full page reload
     const [localAppliedIds, setLocalAppliedIds] =
         useState<number[]>(applied_ids);
 
-    const filtered = vacancies.filter((v) => {
-        if (showOpenOnly && v.status !== 'open') return false;
+    const [localSavedIds, setLocalSavedIds] = useState<number[]>(saved_ids);
+    const [savingBookmarkId, setSavingBookmarkId] = useState<number | null>(
+        null,
+    );
+
+    // Auto-open drawer from Telegram/share deep-link: /jobs?vacancy=<id>
+    useEffect(() => {
+        if (pageMode !== 'board') return;
+        const params = new URLSearchParams(window.location.search);
+        const vacancyId = params.get('vacancy');
+        if (!vacancyId) return;
+        const target = vacancies.find((v) => v.id === parseInt(vacancyId, 10));
+        if (target) setSelected(target);
+    }, [vacancies, pageMode]);
+
+    const closeDrawer = () => {
+        setSelected(null);
+        // Strip the ?vacancy= param so a refresh doesn't re-open the drawer
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('vacancy')) {
+            url.searchParams.delete('vacancy');
+            window.history.replaceState({}, '', url.toString());
+        }
+    };
+
+    const allLocations = Array.from(
+        new Set(
+            vacancies
+                .map((v) => v.location?.trim())
+                .filter((loc): loc is string => Boolean(loc)),
+        ),
+    ).sort();
+
+    function matchesFilters(v: Vacancy): boolean {
         if (workType !== 'all' && v.work_type !== workType) return false;
         if (employment !== 'all' && v.employment_type !== employment)
             return false;
+        if (locationFilter && (v.location ?? '') !== locationFilter) {
+            return false;
+        }
+        if (verifiedOnly && !isEmployerVerified(v.employer)) {
+            return false;
+        }
+        if (deadlineFilter !== 'all' && v.application_deadline) {
+            const days = daysUntil(v.application_deadline);
+            if (deadlineFilter === 'urgent' && (days < 0 || days > 5)) {
+                return false;
+            }
+            if (
+                deadlineFilter === 'closing_soon' &&
+                (days < 0 || days > 14)
+            ) {
+                return false;
+            }
+        } else if (deadlineFilter !== 'all' && !v.application_deadline) {
+            return false;
+        }
+        const filterMin = salaryMin ? parseFloat(salaryMin) : null;
+        const filterMax = salaryMax ? parseFloat(salaryMax) : null;
+        if (filterMin !== null || filterMax !== null) {
+            const vMin = salaryMinValue(v.salary_min, v.salary_max);
+            const vMax = salaryMaxValue(v.salary_min, v.salary_max);
+            if (vMin === null && vMax === null) return false;
+            const effectiveMin = vMin ?? vMax!;
+            const effectiveMax = vMax ?? vMin!;
+            if (filterMin !== null && effectiveMax < filterMin) return false;
+            if (filterMax !== null && effectiveMin > filterMax) return false;
+        }
+        const minMatch = minMatchPct ? parseInt(minMatchPct, 10) / 100 : null;
+        if (minMatch !== null && !Number.isNaN(minMatch)) {
+            const score = lookupMatchScore(ai_matches, v) ?? 0;
+            if (score < minMatch) return false;
+        }
         if (search.trim()) {
             const q = search.toLowerCase();
             return (
                 v.title.toLowerCase().includes(q) ||
                 v.description.toLowerCase().includes(q) ||
-                (v.location ?? '').toLowerCase().includes(q)
+                (v.location ?? '').toLowerCase().includes(q) ||
+                (v.tags ?? []).some((t) => t.toLowerCase().includes(q))
             );
         }
         return true;
-    });
+    }
 
-    const hasAiMatches = Object.keys(ai_matches).length > 0;
+    function sortVacancies(list: Vacancy[]): Vacancy[] {
+        const sorted = [...list];
+        sorted.sort((a, b) => {
+            switch (sortBy) {
+                case 'salary_high': {
+                    const aSal =
+                        salaryMaxValue(a.salary_min, a.salary_max) ?? -1;
+                    const bSal =
+                        salaryMaxValue(b.salary_min, b.salary_max) ?? -1;
+                    return bSal - aSal;
+                }
+                case 'salary_low': {
+                    const aSal =
+                        salaryMinValue(a.salary_min, a.salary_max) ?? Infinity;
+                    const bSal =
+                        salaryMinValue(b.salary_min, b.salary_max) ?? Infinity;
+                    return aSal - bSal;
+                }
+                case 'deadline_soon': {
+                    const aDays = a.application_deadline
+                        ? daysUntil(a.application_deadline)
+                        : Infinity;
+                    const bDays = b.application_deadline
+                        ? daysUntil(b.application_deadline)
+                        : Infinity;
+                    return aDays - bDays;
+                }
+                case 'match_score':
+                    return (
+                        (lookupMatchScore(ai_matches, b) ?? 0) -
+                        (lookupMatchScore(ai_matches, a) ?? 0)
+                    );
+                case 'newest':
+                default:
+                    return (
+                        new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime()
+                    );
+            }
+        });
+        return sorted;
+    }
+
+    const filtered = sortVacancies(vacancies.filter(matchesFilters));
+
+    const hasAiMatches =
+        Object.keys(ai_matches).length > 0 ||
+        vacancies.some((v) => lookupMatchScore(ai_matches, v) !== undefined);
 
     // AI-ranked list: vacancies with score >= 30%, sorted best-first, respects active filters
     const aiRecommended = hasAiMatches
-        ? vacancies
-              .filter((v) => {
-                  if ((ai_matches[v.id] ?? 0) < 0.3) return false;
-                  if (showOpenOnly && v.status !== 'open') return false;
-                  if (workType !== 'all' && v.work_type !== workType)
-                      return false;
-                  if (employment !== 'all' && v.employment_type !== employment)
-                      return false;
-                  if (search.trim()) {
-                      const q = search.toLowerCase();
-                      return (
-                          v.title.toLowerCase().includes(q) ||
-                          v.description.toLowerCase().includes(q) ||
-                          (v.location ?? '').toLowerCase().includes(q)
-                      );
-                  }
-                  return true;
-              })
-              .sort((a, b) => (ai_matches[b.id] ?? 0) - (ai_matches[a.id] ?? 0))
+        ? sortVacancies(
+              vacancies
+                  .filter(
+                      (v) =>
+                          (lookupMatchScore(ai_matches, v) ?? 0) >= 0.3 &&
+                          matchesFilters(v),
+                  ),
+          )
         : [];
 
-    const displayList = activeTab === 'recommended' ? aiRecommended : filtered;
+    const displayList =
+        activeTab === 'recommended'
+            ? aiRecommended
+            : activeTab === 'saved'
+              ? filtered.filter((v) => localSavedIds.includes(v.id))
+              : filtered;
+
+    function toggleSave(vacancyId: number) {
+        if (!isAuthenticated || savingBookmarkId !== null) {
+            return;
+        }
+
+        const currentlySaved = localSavedIds.includes(vacancyId);
+        setSavingBookmarkId(vacancyId);
+
+        if (currentlySaved) {
+            router.delete(`/saved-jobs/${vacancyId}`, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setLocalSavedIds((prev) =>
+                        prev.filter((id) => id !== vacancyId),
+                    );
+                    if (pageMode === 'saved' && selected?.id === vacancyId) {
+                        setSelected(null);
+                    }
+                },
+                onFinish: () => setSavingBookmarkId(null),
+            });
+        } else {
+            router.post(
+                `/saved-jobs/${vacancyId}`,
+                {},
+                {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setLocalSavedIds((prev) => [...prev, vacancyId]);
+                    },
+                    onFinish: () => setSavingBookmarkId(null),
+                },
+            );
+        }
+    }
 
     function openApply(vacancy: Vacancy) {
+        // Guests must sign in before applying.
+        if (!isAuthenticated) {
+            router.visit(
+                `/login?redirect=${encodeURIComponent('/jobs')}`,
+            );
+            return;
+        }
         setSelected(null); // close drawer
         if (vacancy.screening_required) {
             setScreening(vacancy);
@@ -1537,33 +2127,138 @@ export default function JobListings({
             `}</style>
 
             <div className="flex min-h-0 w-full gap-5 px-6 py-6">
-                <ProfileSidebar
-                    user={user}
-                    stats={sidebar_stats}
-                    profileCompletion={profile_completion}
-                />
+                {isAuthenticated && user ? (
+                    <ProfileSidebar
+                        user={user}
+                        stats={sidebar_stats ?? undefined}
+                        profileCompletion={profile_completion}
+                    />
+                ) : (
+                    <GuestSidebar />
+                )}
 
                 <div className="min-w-0 flex-1 space-y-4">
-                    <DashboardWelcome
-                        meta={
-                            activeTab === 'recommended'
-                                ? `${aiRecommended.length} AI ${aiRecommended.length === 1 ? 'match' : 'matches'} based on your profile`
-                                : `${filtered.length} ${filtered.length === 1 ? 'position' : 'positions'} available on the job board`
-                        }
-                    />
+                    {isAuthenticated ? (
+                        <DashboardWelcome
+                            meta={
+                                activeTab === 'recommended'
+                                    ? `${aiRecommended.length} AI ${aiRecommended.length === 1 ? 'match' : 'matches'} based on your profile`
+                                    : `${filtered.length} ${filtered.length === 1 ? 'position' : 'positions'} available on the job board`
+                            }
+                        />
+                    ) : (
+                        <GuestHero count={filtered.length} />
+                    )}
+
+                    {isAuthenticated && ai_matching_hint && !hasAiMatches && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                            {ai_matching_hint}
+                        </div>
+                    )}
+
 
                     <div className="flex items-center justify-between">
                         <div>
                             <h2 className="text-lg font-semibold text-slate-900">
-                                Job board
+                                {pageMode === 'saved' ? 'Saved jobs' : 'Job board'}
                             </h2>
                             <p className="mt-0.5 text-sm text-slate-400">
-                                {activeTab === 'recommended'
-                                    ? 'Sorted by AI match score'
-                                    : 'Search and filter open roles'}
+                                {pageMode === 'saved'
+                                    ? 'Roles you bookmarked to review or apply later'
+                                    : activeTab === 'recommended'
+                                      ? 'Sorted by AI match score'
+                                      : activeTab === 'saved'
+                                        ? 'Your bookmarked roles'
+                                        : 'Search and filter open roles'}
                             </p>
                         </div>
-                        {hasAiMatches && (
+                        {pageMode === 'board' && isAuthenticated && (
+                            <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                                <button
+                                    onClick={() => setActiveTab('all')}
+                                    className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all ${
+                                        activeTab === 'all'
+                                            ? 'bg-slate-900 text-white shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-800'
+                                    }`}
+                                >
+                                    All Jobs
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('saved')}
+                                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all ${
+                                        activeTab === 'saved'
+                                            ? 'bg-amber-500 text-white shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-800'
+                                    }`}
+                                >
+                                    <svg
+                                        className="h-3.5 w-3.5"
+                                        viewBox="0 0 16 16"
+                                        fill={
+                                            activeTab === 'saved'
+                                                ? 'currentColor'
+                                                : 'none'
+                                        }
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M2.5 2.5h11v12l-5.5-3-5.5 3z"
+                                        />
+                                    </svg>
+                                    Saved
+                                    {localSavedIds.length > 0 && (
+                                        <span
+                                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                                activeTab === 'saved'
+                                                    ? 'bg-amber-400 text-white'
+                                                    : 'bg-amber-100 text-amber-700'
+                                            }`}
+                                        >
+                                            {localSavedIds.length}
+                                        </span>
+                                    )}
+                                </button>
+                                {hasAiMatches && (
+                                    <button
+                                        onClick={() =>
+                                            setActiveTab('recommended')
+                                        }
+                                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all ${
+                                            activeTab === 'recommended'
+                                                ? 'bg-violet-600 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-800'
+                                        }`}
+                                    >
+                                        <svg
+                                            className="h-3.5 w-3.5"
+                                            viewBox="0 0 16 16"
+                                            fill="currentColor"
+                                        >
+                                            <path d="M8 1.333l1.654 3.36 3.679.533-2.666 2.6.633 3.667L8 9.546l-3.3 1.947.633-3.667-2.666-2.6 3.679-.533L8 1.333z" />
+                                        </svg>
+                                        AI Picks
+                                        {aiRecommended.length > 0 && (
+                                            <span
+                                                className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                                    activeTab === 'recommended'
+                                                        ? 'bg-violet-400 text-white'
+                                                        : 'bg-violet-100 text-violet-600'
+                                                }`}
+                                            >
+                                                {aiRecommended.length}
+                                            </span>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        {pageMode === 'board' &&
+                            !isAuthenticated &&
+                            hasAiMatches && (
                             <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
                                 <button
                                     onClick={() => setActiveTab('all')}
@@ -1591,17 +2286,6 @@ export default function JobListings({
                                         <path d="M8 1.333l1.654 3.36 3.679.533-2.666 2.6.633 3.667L8 9.546l-3.3 1.947.633-3.667-2.666-2.6 3.679-.533L8 1.333z" />
                                     </svg>
                                     AI Picks
-                                    {aiRecommended.length > 0 && (
-                                        <span
-                                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                                activeTab === 'recommended'
-                                                    ? 'bg-violet-400 text-white'
-                                                    : 'bg-violet-100 text-violet-600'
-                                            }`}
-                                        >
-                                            {aiRecommended.length}
-                                        </span>
-                                    )}
                                 </button>
                             </div>
                         )}
@@ -1689,22 +2373,151 @@ export default function JobListings({
                                 <option value="temporary">Temporary</option>
                                 <option value="internship">Internship</option>
                             </select>
-                            <label className="ml-auto flex cursor-pointer items-center gap-2">
-                                <div
-                                    onClick={() =>
-                                        setShowOpenOnly(!showOpenOnly)
-                                    }
-                                    className={`relative h-5 w-9 cursor-pointer rounded-full transition-colors ${showOpenOnly ? 'bg-blue-500' : 'bg-slate-200'}`}
-                                >
-                                    <span
-                                        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${showOpenOnly ? 'translate-x-4' : ''}`}
+                            <select
+                                value={sortBy}
+                                onChange={(e) =>
+                                    setSortBy(e.target.value as SortOption)
+                                }
+                                className="cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[13px] text-slate-600 outline-none focus:ring-2 focus:ring-blue-200"
+                            >
+                                <option value="newest">Newest first</option>
+                                <option value="salary_high">
+                                    Salary: high to low
+                                </option>
+                                <option value="salary_low">
+                                    Salary: low to high
+                                </option>
+                                <option value="deadline_soon">
+                                    Deadline soonest
+                                </option>
+                                {hasAiMatches && (
+                                    <option value="match_score">
+                                        Best AI match
+                                    </option>
+                                )}
+                            </select>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setShowAdvancedFilters((v) => !v)
+                                }
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                            >
+                                {showAdvancedFilters
+                                    ? 'Hide filters'
+                                    : 'More filters'}
+                            </button>
+                        </div>
+
+                        {showAdvancedFilters && (
+                            <div className="grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-3">
+                                <div>
+                                    <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                                        Location
+                                    </label>
+                                    <select
+                                        value={locationFilter}
+                                        onChange={(e) =>
+                                            setLocationFilter(e.target.value)
+                                        }
+                                        className="w-full cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600 outline-none focus:ring-2 focus:ring-blue-200"
+                                    >
+                                        <option value="">All locations</option>
+                                        {allLocations.map((loc) => (
+                                            <option key={loc} value={loc}>
+                                                {loc}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                                        Min salary (BIRR)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        placeholder="e.g. 10000"
+                                        value={salaryMin}
+                                        onChange={(e) =>
+                                            setSalaryMin(e.target.value)
+                                        }
+                                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-blue-200"
                                     />
                                 </div>
-                                <span className="text-[13px] text-slate-600 select-none">
-                                    Open only
-                                </span>
-                            </label>
-                        </div>
+                                <div>
+                                    <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                                        Max salary (BIRR)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        placeholder="e.g. 50000"
+                                        value={salaryMax}
+                                        onChange={(e) =>
+                                            setSalaryMax(e.target.value)
+                                        }
+                                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-blue-200"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                                        Deadline
+                                    </label>
+                                    <select
+                                        value={deadlineFilter}
+                                        onChange={(e) =>
+                                            setDeadlineFilter(
+                                                e.target
+                                                    .value as FilterDeadline,
+                                            )
+                                        }
+                                        className="w-full cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600 outline-none focus:ring-2 focus:ring-blue-200"
+                                    >
+                                        <option value="all">Any deadline</option>
+                                        <option value="urgent">
+                                            Urgent (≤5 days)
+                                        </option>
+                                        <option value="closing_soon">
+                                            Closing soon (≤14 days)
+                                        </option>
+                                    </select>
+                                </div>
+                                {hasAiMatches && (
+                                    <div>
+                                        <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                                            Min AI match %
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            placeholder="e.g. 50"
+                                            value={minMatchPct}
+                                            onChange={(e) =>
+                                                setMinMatchPct(e.target.value)
+                                            }
+                                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-blue-200"
+                                        />
+                                    </div>
+                                )}
+                                <div className="flex items-end">
+                                    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600">
+                                        <input
+                                            type="checkbox"
+                                            checked={verifiedOnly}
+                                            onChange={(e) =>
+                                                setVerifiedOnly(
+                                                    e.target.checked,
+                                                )
+                                            }
+                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-200"
+                                        />
+                                        Verified employers only
+                                    </label>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {displayList.length === 0 ? (
@@ -1731,6 +2544,37 @@ export default function JobListings({
                                         Complete your CV with more skills and
                                         experience for better recommendations
                                     </p>
+                                </>
+                            ) : activeTab === 'saved' || pageMode === 'saved' ? (
+                                <>
+                                    <svg
+                                        className="mx-auto mb-3 h-10 w-10 opacity-40"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"
+                                        />
+                                    </svg>
+                                    <p className="font-medium text-slate-500">
+                                        No saved jobs yet
+                                    </p>
+                                    <p className="mt-1 text-sm">
+                                        Bookmark roles from the job board to
+                                        review them here later
+                                    </p>
+                                    {pageMode === 'saved' && (
+                                        <Link
+                                            href="/jobs"
+                                            className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                                        >
+                                            Browse jobs
+                                        </Link>
+                                    )}
                                 </>
                             ) : (
                                 <>
@@ -1765,7 +2609,7 @@ export default function JobListings({
                                     vacancy={v}
                                     hasApplied={localAppliedIds.includes(v.id)}
                                     onClick={() => setSelected(v)}
-                                    matchScore={ai_matches[v.id]}
+                                    matchScore={lookupMatchScore(ai_matches, v)}
                                 />
                             ))}
                         </div>
@@ -1778,8 +2622,12 @@ export default function JobListings({
                 <JobDrawer
                     vacancy={selected}
                     hasApplied={localAppliedIds.includes(selected.id)}
-                    onClose={() => setSelected(null)}
+                    isAuthenticated={isAuthenticated}
+                    isSaved={localSavedIds.includes(selected.id)}
+                    savingBookmark={savingBookmarkId === selected.id}
+                    onClose={closeDrawer}
                     onApply={() => openApply(selected)}
+                    onToggleSave={() => toggleSave(selected.id)}
                 />
             )}
 

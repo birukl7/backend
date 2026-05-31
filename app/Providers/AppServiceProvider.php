@@ -2,9 +2,16 @@
 
 namespace App\Providers;
 
+use App\Notifications\EmailVerifiedNotification;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Verified;
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -25,6 +32,70 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configureSignedUrls();
+        $this->configureEventListeners();
+        $this->warnIfAiMatchingMisconfigured();
+    }
+
+    /**
+     * Log when production still points at localhost (common cause of missing match badges).
+     */
+    protected function warnIfAiMatchingMisconfigured(): void
+    {
+        if (! app()->isProduction()) {
+            return;
+        }
+
+        $url = (string) config('services.ai_matching.url', '');
+
+        if ($url === '' || str_contains($url, 'localhost') || str_contains($url, '127.0.0.1')) {
+            Log::warning(
+                'AI_MATCHING_URL is not set to a reachable host in production. '
+                .'Job board match badges will not appear until it is configured (e.g. http://18.225.211.229:8001).',
+            );
+        }
+    }
+
+    /**
+     * Always sign verification links with APP_URL so Gmail links validate correctly.
+     */
+    protected function configureSignedUrls(): void
+    {
+        VerifyEmail::createUrlUsing(function (object $notifiable): string {
+            $this->applyAppUrlForSigning();
+
+            return URL::temporarySignedRoute(
+                'verification.verify',
+                Carbon::now()->addMinutes(Config::get('auth.verification.expire', 60)),
+                [
+                    'id' => $notifiable->getKey(),
+                    'hash' => sha1($notifiable->getEmailForVerification()),
+                ],
+            );
+        });
+    }
+
+    /**
+     * Force root URL/scheme used when generating signed routes (web + queue worker).
+     */
+    protected function applyAppUrlForSigning(): void
+    {
+        $appUrl = (string) config('app.url');
+
+        if ($appUrl !== '') {
+            URL::forceRootUrl(rtrim($appUrl, '/'));
+        }
+
+        if (str_starts_with($appUrl, 'https://')) {
+            URL::forceScheme('https');
+        }
+    }
+
+    protected function configureEventListeners(): void
+    {
+        Event::listen(Verified::class, function (Verified $event): void {
+            $event->user->notify(new EmailVerifiedNotification);
+        });
     }
 
     /**
@@ -37,8 +108,7 @@ class AppServiceProvider extends ServiceProvider
         // Render sits behind a proxy / TLS terminator. Force HTTPS URL generation
         // in production so Vite assets and favicon links are not emitted as http.
         if (app()->isProduction()) {
-            URL::forceScheme('https');
-            URL::forceRootUrl(config('app.url'));
+            $this->applyAppUrlForSigning();
         }
 
         DB::prohibitDestructiveCommands(
