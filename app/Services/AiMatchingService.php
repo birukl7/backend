@@ -95,29 +95,71 @@ class AiMatchingService
      */
     public function getMatchScores(string $resumeText, array $vacancies): array
     {
-        if (empty($resumeText) || empty($vacancies)) {
+        $vacancies = $this->normalizeVacanciesForApi($vacancies);
+
+        if (empty(trim($resumeText)) || empty($vacancies)) {
             return [];
         }
 
+        $url = rtrim($this->baseUrl, '/').'/match';
+
         try {
-            $response = Http::connectTimeout(2)->timeout(10)->post("{$this->baseUrl}/match", [
+            $response = Http::connectTimeout(5)->timeout(30)->post($url, [
                 'resume_text' => $resumeText,
                 'vacancies'   => $vacancies,
             ]);
 
             if ($response->successful()) {
                 $matches = $response->json('matches', []);
+
                 return collect($matches)
-                    ->pluck('score', 'vacancy_id')
+                    ->mapWithKeys(fn ($match) => [(int) $match['vacancy_id'] => (float) $match['score']])
                     ->toArray();
             }
 
-            Log::warning('AI matching service returned non-200', ['status' => $response->status()]);
+            Log::warning('AI matching service returned non-200', [
+                'url'    => $url,
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
         } catch (\Exception $e) {
-            Log::info('AI matching service unavailable (will use cache): ' . $e->getMessage());
+            Log::warning('AI matching service unavailable', [
+                'url'   => $url,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         return [];
+    }
+
+    /**
+     * Ensure each vacancy satisfies the FastAPI schema (non-empty description).
+     *
+     * @param  list<array<string, mixed>>  $vacancies
+     * @return list<array<string, mixed>>
+     */
+    private function normalizeVacanciesForApi(array $vacancies): array
+    {
+        return collect($vacancies)
+            ->map(function (array $vacancy): array {
+                $title = trim((string) ($vacancy['title'] ?? 'Job'));
+                $description = trim((string) ($vacancy['description'] ?? ''));
+
+                if ($description === '') {
+                    $description = $title !== '' ? $title : 'Job vacancy';
+                }
+
+                return [
+                    'id'           => $vacancy['id'],
+                    'title'        => $title !== '' ? $title : 'Job',
+                    'description'  => $description,
+                    'requirements' => filled($vacancy['requirements'] ?? null)
+                        ? (string) $vacancy['requirements']
+                        : null,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**
@@ -148,16 +190,31 @@ class AiMatchingService
             return [];
         }
 
-        // ── Serve from cache when available (instant, zero network cost) ──────
+        $vacancyIds = collect($vacancies)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($vacancyIds === []) {
+            return [];
+        }
+
+        // ── Serve from cache when every active vacancy has a stored score ─────
         $cached = AiMatch::where('user_id', $userId)
+            ->whereIn('vacancy_id', $vacancyIds)
             ->pluck('match_score', 'vacancy_id')
+            ->mapWithKeys(fn ($score, $vacancyId) => [(int) $vacancyId => (float) $score])
             ->toArray();
 
-        if (! empty($cached)) {
+        $missingVacancyIds = array_values(array_diff($vacancyIds, array_keys($cached)));
+
+        if ($missingVacancyIds === [] && $cached !== []) {
             return $cached;
         }
 
-        // ── No cache — compute fresh scores ───────────────────────────────────
+        // ── No (complete) cache — compute scores for missing or all vacancies ─
         $cv = Cv::where('user_id', $userId)
             ->where('is_default', true)
             ->with(['skills', 'experiences', 'educations', 'projects'])
@@ -171,12 +228,29 @@ class AiMatchingService
         }
 
         $resumeText = $this->buildResumeText($cv);
-        $scoreMap   = $this->getMatchScores($resumeText, $vacancies);
 
-        if (!empty($scoreMap)) {
+        if (trim($resumeText) === '') {
+            Log::info('AI matching skipped: CV has no extractable text for scoring', [
+                'user_id' => $userId,
+                'cv_id'   => $cv->id,
+            ]);
+
+            return $cached;
+        }
+
+        $vacanciesToScore = $missingVacancyIds === []
+            ? $vacancies
+            : collect($vacancies)
+                ->whereIn('id', $missingVacancyIds)
+                ->values()
+                ->all();
+
+        $scoreMap = $this->getMatchScores($resumeText, $vacanciesToScore);
+
+        if (! empty($scoreMap)) {
             $this->storeMatches($userId, $scoreMap);
         }
 
-        return $scoreMap;
+        return array_replace($cached, $scoreMap);
     }
 }

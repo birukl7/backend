@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -33,6 +34,26 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->configureSignedUrls();
         $this->configureEventListeners();
+        $this->warnIfAiMatchingMisconfigured();
+    }
+
+    /**
+     * Log when production still points at localhost (common cause of missing match badges).
+     */
+    protected function warnIfAiMatchingMisconfigured(): void
+    {
+        if (! app()->isProduction()) {
+            return;
+        }
+
+        $url = (string) config('services.ai_matching.url', '');
+
+        if ($url === '' || str_contains($url, 'localhost') || str_contains($url, '127.0.0.1')) {
+            Log::warning(
+                'AI_MATCHING_URL is not set to a reachable host in production. '
+                .'Job board match badges will not appear until it is configured (e.g. http://18.225.211.229:8001).',
+            );
+        }
     }
 
     /**
