@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiMatch;
 use App\Models\Cv;
 use App\Models\CvExperience;
 use App\Models\CvEducation;
 use App\Models\CvSkill;
 use App\Models\CvProject;
 use App\Services\AiCvSummaryService;
+use App\Services\CvTextExtractorService;
 use App\Support\PhpIniSize;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -86,7 +88,7 @@ class CvController extends Controller
         $path = $file->store('cv-uploads', 'public');
         $title = $data['title'] ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
 
-        Cv::create([
+        $cv = Cv::create([
             'user_id'           => auth()->id(),
             'title'             => $title,
             'source'            => 'upload',
@@ -95,6 +97,8 @@ class CvController extends Controller
             'mime_type'         => $file->getMimeType(),
             'is_default'        => ! Cv::where('user_id', auth()->id())->exists(),
         ]);
+
+        app(CvTextExtractorService::class)->extractAndPersist($cv);
 
         return redirect()->route('cv.index')->with('success', 'CV uploaded successfully.');
     }
@@ -160,7 +164,11 @@ class CvController extends Controller
             Storage::disk('public')->delete($cv->file_path);
         }
 
+        $userId = $cv->user_id;
         $cv->delete();
+
+        AiMatch::where('user_id', $userId)->delete();
+
         return redirect()->route('cv.index');
     }
 

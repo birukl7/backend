@@ -1,5 +1,15 @@
 import AppLayout from "@/layouts/app-layout";
-import { Head, router } from "@inertiajs/react";
+import { Head, router, usePage } from "@inertiajs/react";
+import HireReviewForm from "@/components/hire-review-form";
+
+interface HireReview {
+    id: number;
+    rating: number;
+    comment: string | null;
+    created_at: string;
+    reviewer_id: number;
+    reviewer?: { id: number; name: string };
+}
 
 interface Application {
     id: number;
@@ -18,6 +28,7 @@ interface Application {
         id: number;
         title: string;
     };
+    hire_reviews?: HireReview[];
 }
 
 interface Props {
@@ -70,6 +81,9 @@ function StatsRow({ applications }: { applications: Application[] }) {
 }
 
 export default function MyApplications({ applications }: Props) {
+    const { auth } = usePage<{ auth: { user: { id: number } } }>().props;
+    const userId = auth.user.id;
+
     function withdraw(id: number) {
         if (confirm("Withdraw this application?")) {
             router.delete(`/applications/${id}`);
@@ -106,6 +120,9 @@ export default function MyApplications({ applications }: Props) {
                         {applications.map((app) => {
                             const cfg = STATUS_CONFIG[app.status];
                             const canWithdraw = ["pending", "applied"].includes(app.status);
+                            const reviews = app.hire_reviews ?? [];
+                            const myReview = reviews.find((r) => r.reviewer_id === userId);
+                            const theirReview = reviews.find((r) => r.reviewer_id !== userId);
 
                             return (
                                 <div key={app.id} className="bg-white border border-slate-200 hover:border-slate-300 rounded-2xl px-5 py-4 flex items-start gap-4 transition-colors group">
@@ -161,6 +178,30 @@ export default function MyApplications({ applications }: Props) {
                                                 </button>
                                             )}
                                         </div>
+
+                                        {app.status === "hired" && (
+                                            <div className="mt-3 space-y-2">
+                                                <HireReviewForm
+                                                    applicationId={app.id}
+                                                    existingReview={myReview}
+                                                    revieweeLabel="the employer"
+                                                />
+                                                {theirReview && (
+                                                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                                                        <p className="text-[11px] font-semibold text-slate-500">
+                                                            Employer feedback
+                                                        </p>
+                                                        <p className="mt-1 text-[12px] text-amber-600">
+                                                            {'★'.repeat(theirReview.rating)}{'☆'.repeat(5 - theirReview.rating)}
+                                                            {' '}({theirReview.rating}/5)
+                                                        </p>
+                                                        {theirReview.comment && (
+                                                            <p className="mt-1 text-[12px] text-slate-600">{theirReview.comment}</p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             );

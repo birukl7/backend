@@ -42,4 +42,9 @@ class Application extends Model
     {
         return $this->hasOne(ScreeningResponse::class);
     }
+
+    public function hireReviews()
+    {
+        return $this->hasMany(HireReview::class);
+    }
 }

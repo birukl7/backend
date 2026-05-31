@@ -51,11 +51,13 @@ interface SidebarStats {
     interviews: number;
     skills_earned: number;
     cvs_count: number;
+    saved?: number;
 }
 
 interface Props {
     vacancies: Vacancy[];
     applied_ids: number[];
+    saved_ids?: number[];
     user_cvs: UserCv[];
     ai_matches?: Record<number, number>;
     sidebar_stats?: SidebarStats | null;
@@ -98,6 +100,7 @@ function PublicHeader() {
 export default function Index({
     vacancies,
     applied_ids,
+    saved_ids = [],
     user_cvs,
     ai_matches = {},
     sidebar_stats,
@@ -108,6 +111,7 @@ export default function Index({
         <JobListings
             vacancies={vacancies}
             applied_ids={applied_ids}
+            saved_ids={saved_ids}
             user_cvs={user_cvs}
             ai_matches={ai_matches}
             sidebar_stats={sidebar_stats}
