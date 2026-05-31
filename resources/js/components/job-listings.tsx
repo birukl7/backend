@@ -1379,11 +1379,6 @@ function JobDrawer({
                             >
                                 {EMPLOYMENT_LABELS[vacancy.employment_type]}
                             </span>
-                            <span
-                                className={`rounded-full border px-3 py-1 text-[12px] font-medium ${!isExpired ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}
-                            >
-                                {!isExpired ? '● Open' : 'Closed'}
-                            </span>
                         </div>
 
                         {tags.length > 0 && (
@@ -1589,8 +1584,6 @@ function JobCard({
         ? daysUntil(vacancy.application_deadline)
         : null;
     const isUrgent = deadline !== null && deadline <= 5 && deadline >= 0;
-    const isExpired =
-        vacancy.is_expired ?? (deadline !== null && deadline < 0);
     const tags = vacancy.tags ?? [];
 
     return (
@@ -1656,16 +1649,6 @@ function JobCard({
                                 <path strokeLinecap="round" d="M2 6l3 3 5-5" />
                             </svg>
                             Applied
-                        </span>
-                    )}
-                    {!isExpired ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            Open
-                        </span>
-                    ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-400">
-                            Closed
                         </span>
                     )}
                 </div>
@@ -2173,18 +2156,6 @@ export default function JobListings({
                         </div>
                     )}
 
-                    {isAuthenticated &&
-                        ai_matching_debug &&
-                        typeof ai_matching_debug.status === 'string' && (
-                            <details className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-xs text-slate-700">
-                                <summary className="cursor-pointer font-semibold text-slate-900">
-                                    AI matching debug ({ai_matching_debug.status as string})
-                                </summary>
-                                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap">
-                                    {JSON.stringify(ai_matching_debug, null, 2)}
-                                </pre>
-                            </details>
-                        )}
 
                     <div className="flex items-center justify-between">
                         <div>
