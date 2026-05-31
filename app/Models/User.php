@@ -48,6 +48,12 @@ use Spatie\Permission\Traits\HasRoles;
     'company_submitted_at',
     'company_verified_at',
     'company_verified_by',
+    'is_flagged_suspicious',
+    'account_status',
+    'security_notes',
+    'security_flagged_at',
+    'security_flagged_by',
+    'status_changed_at',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
@@ -79,6 +85,9 @@ class User extends Authenticatable implements MustVerifyEmail
             'kyc_verified' => 'boolean',
             'tin_verified' => 'boolean',
             'company_info_verified' => 'boolean',
+            'is_flagged_suspicious' => 'boolean',
+            'security_flagged_at' => 'datetime',
+            'status_changed_at' => 'datetime',
         ];
     }
 

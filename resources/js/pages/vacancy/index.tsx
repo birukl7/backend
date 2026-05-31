@@ -76,12 +76,6 @@ function PublicHeader() {
                 </Link>
                 <nav className="flex items-center gap-2">
                     <Link
-                        href="/hiring-statistics"
-                        className="hidden rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 sm:block"
-                    >
-                        Hiring stats
-                    </Link>
-                    <Link
                         href="/login"
                         className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
                     >

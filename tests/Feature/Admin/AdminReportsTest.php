@@ -4,6 +4,8 @@ use App\Models\Application;
 use App\Models\Cv;
 use App\Models\User;
 use App\Models\Vacancy;
+use App\Support\DatabaseYearMonth;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -21,13 +23,18 @@ test('admin can access reports and analytics page', function () {
     $jobSeeker = User::factory()->create();
     $jobSeeker->assignRole('job_seeker');
 
-    $vacancy = Vacancy::factory()->create(['user_id' => $employer->id]);
+    $vacancy = Vacancy::create([
+        'user_id'              => $employer->id,
+        'title'                => 'Backend Developer',
+        'description'          => 'Build APIs',
+        'application_deadline' => now()->addMonth(),
+    ]);
     $cv = Cv::create(['user_id' => $jobSeeker->id, 'title' => 'Main CV']);
     Application::create([
         'vacancy_id' => $vacancy->id,
-        'cv_id' => $cv->id,
-        'user_id' => $jobSeeker->id,
-        'status' => 'applied',
+        'cv_id'      => $cv->id,
+        'user_id'    => $jobSeeker->id,
+        'status'     => 'applied',
     ]);
 
     $this->actingAs($admin)
@@ -50,3 +57,25 @@ test('non-admin cannot access reports and analytics page', function () {
         ->assertForbidden();
 });
 
+test('monthly report query uses driver compatible year month expression', function () {
+    $driver = DB::connection()->getDriverName();
+    $expression = DatabaseYearMonth::expression('created_at');
+
+    if ($driver === 'sqlite') {
+        expect($expression)->toBe('strftime("%Y-%m", created_at)');
+    } else {
+        expect($expression)->toBe("DATE_FORMAT(created_at, '%Y-%m')");
+    }
+
+    DB::table('users')
+        ->where('created_at', '>=', now()->subMonths(2))
+        ->select(
+            DB::raw($expression.' as ym'),
+            DB::raw('count(*) as count'),
+        )
+        ->groupBy('ym')
+        ->orderBy('ym')
+        ->get();
+
+    expect(true)->toBeTrue();
+});

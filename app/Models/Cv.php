@@ -14,6 +14,7 @@ class Cv extends Model
         'full_name', 'email', 'phone', 'location', 'website', 'linkedin', 'github', 'summary',
         'template', 'accent_color', 'section_order', 'photo_path',
         'ai_summary', 'ai_suggestions', 'ai_improvements', 'ai_strength_score', 'ai_summary_generated_at',
+        'summary_approval_status', 'summary_moderation_notes', 'summary_moderated_at', 'summary_moderated_by',
     ];
 
     protected $appends = ['photo_url', 'file_url'];
@@ -26,6 +27,7 @@ class Cv extends Model
         'ai_strength_score'       => 'integer',
         'ai_summary_generated_at' => 'datetime',
         'extracted_at'            => 'datetime',
+        'summary_moderated_at'    => 'datetime',
     ];
 
     public function getPhotoUrlAttribute(): ?string

@@ -23,11 +23,20 @@ class Vacancy extends Model
         'status',
         'work_type',
         'application_deadline',
+        'moderation_status',
+        'is_archived',
+        'is_flagged_suspicious',
+        'moderation_notes',
+        'moderated_at',
+        'moderated_by',
     ];
 
     protected $casts = [
         'tags'                 => 'array',
         'application_deadline' => 'date',
+        'is_archived'          => 'boolean',
+        'is_flagged_suspicious' => 'boolean',
+        'moderated_at'         => 'datetime',
     ];
 
     protected $appends = ['is_expired'];

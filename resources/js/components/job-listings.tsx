@@ -1824,14 +1824,6 @@ function GuestSidebar() {
                         />
                     </svg>
                 </span>
-                <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-medium text-slate-800">
-                        Hiring statistics
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                        See who's hiring on the platform
-                    </p>
-                </div>
             </Link>
         </aside>
     );
