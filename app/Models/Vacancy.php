@@ -32,12 +32,6 @@ class Vacancy extends Model
 
     protected $appends = ['is_expired'];
 
-    public function applications(){
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
-
     public function applications()
     {
         return $this->hasMany(Application::class);
@@ -49,6 +43,11 @@ class Vacancy extends Model
     public function employer()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function user()
+    {
+        return $this->employer();
     }
 
     /**
