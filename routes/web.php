@@ -44,18 +44,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'employer'])->name('dashboard');
 });
 
+// Employer routes
+Route::middleware(['auth', 'verified', 'role:employer'])->group(function () {
+    Route::get('dashboard', [DashboardController::class, 'employer'])->name('dashboard');
 
-// ── Employer routes (role: employer) ─────────────────────────────────────────
-Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/employer/jobs',          [VacancyController::class, 'index'])->name('employer.jobs.index');
     Route::post('/employer/jobs',         [VacancyController::class, 'store'])->name('employer.jobs.store');
     Route::put('/employer/jobs/{vacancy}', [VacancyController::class, 'update'])->name('employer.jobs.update');
     Route::delete('/employer/jobs/{vacancy}', [VacancyController::class, 'destroy'])->name('employer.jobs.destroy');
-});
 
+    Route::get('/employer/jobs/{vacancy}/applications', [VacancyController::class, 'applications'])
+        ->name('employer.jobs.applications');
 
-// ── Job seeker routes (role: job_seeker) ─────────────────────────────────────
-Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/employer/jobs/{vacancy}/screening',
+        [VacancyController::class, 'showScreening'])->name('employer.jobs.screening.show');
+    Route::put('/employer/jobs/{vacancy}/screening',
+        [VacancyController::class, 'updateScreening'])->name('employer.jobs.screening.update');
+    Route::post('/employer/jobs/{vacancy}/screening/tune',
+        [VacancyController::class, 'tuneScreening'])->name('employer.jobs.screening.tune');
+
+    Route::get('/employer/applications/{application}/screening',
+        [ScreeningController::class, 'showForEmployer'])->name('employer.applications.screening');
+
+    Route::get('/employer/applications/{application}/cv-summary',
+        [ApplicationController::class, 'cvSummary'])->name('employer.applications.cv-summary');
+
+    Route::get('/employer/jobs/{vacancy}/ai-suggestions', [VacancyController::class, 'aiSuggestions'])->name('employer.jobs.ai-suggestions');
+    Route::post('/employer/jobs/{vacancy}/invite/{userId}', [VacancyController::class, 'inviteUser'])->name('employer.jobs.invite');
 
 // ── Job seeker ────────────────────────────────────────────────────────────
     Route::get('/my-applications',  [ApplicationController::class, 'index'])->name('applications.index');
@@ -70,52 +85,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/interviews/{interview}', [InterviewController::class, 'destroy'])->name('interviews.destroy');
     Route::get('/interviews/{interview}/join', [InterviewController::class, 'join'])->name('interviews.join');
 
-    // ── Employer ──────────────────────────────────────────────────────────────
-    Route::prefix('employer')->name('employer.')->group(function () {
-
-        // Applications management
-        Route::get('/applications',  [ApplicationController::class, 'employerIndex'])->name('applications.index');
-        Route::patch('/applications/{application}/status', [ApplicationController::class, 'updateStatus'])->name('applications.status');
-
-        // Interview scheduling
-        Route::get('/interviews',    [InterviewController::class, 'employerIndex'])->name('interviews.index');
-        Route::post('/applications/{application}/interview', [InterviewController::class, 'store'])->name('interviews.store');
-        Route::patch('/interviews/{interview}/reschedule',   [InterviewController::class, 'reschedule'])->name('interviews.reschedule');
-        Route::patch('/interviews/{interview}/complete',     [InterviewController::class, 'complete'])->name('interviews.complete');
-        Route::delete('/interviews/{interview}',             [InterviewController::class, 'destroy'])->name('interviews.destroy');
-    });
-
-    Route::get('/employer/jobs/{vacancy}/applications', [VacancyController::class, 'applications'])
-    ->name('employer.jobs.applications');
-
-    // ── Smart screening (AI-assisted) ─────────────────────────────────────
-    // Employer-side: configure & tune screening
-    Route::get('/employer/jobs/{vacancy}/screening',
-        [VacancyController::class, 'showScreening'])->name('employer.jobs.screening.show');
-    Route::put('/employer/jobs/{vacancy}/screening',
-        [VacancyController::class, 'updateScreening'])->name('employer.jobs.screening.update');
-    Route::post('/employer/jobs/{vacancy}/screening/tune',
-        [VacancyController::class, 'tuneScreening'])->name('employer.jobs.screening.tune');
-
-    // Employer-side: view a candidate's screening report
-    Route::get('/employer/applications/{application}/screening',
-        [ScreeningController::class, 'showForEmployer'])->name('employer.applications.screening');
-
-    // Employer-side: AI-generated brief about the applicant's CV
-    Route::get('/employer/applications/{application}/cv-summary',
-        [ApplicationController::class, 'cvSummary'])->name('employer.applications.cv-summary');
-
-    // Candidate-side: AI screening chat
     Route::post('/screening/{vacancy}/start',
         [ScreeningController::class, 'start'])->name('screening.start');
     Route::post('/screening/{response}/message',
         [ScreeningController::class, 'message'])->name('screening.message');
     Route::post('/screening/{response}/complete',
         [ScreeningController::class, 'complete'])->name('screening.complete');
-});
 
-
-Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/cv',              [CvController::class, 'index'])->name('cv.index');
     Route::post('/cv',             [CvController::class, 'store'])->name('cv.store');
     Route::post('/cv/upload',      [CvController::class, 'upload'])->name('cv.upload');
@@ -124,33 +100,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/cv/{id}',         [CvController::class, 'update'])->name('cv.update');
     Route::delete('/cv/{id}',      [CvController::class, 'destroy'])->name('cv.destroy');
 
-    // Experiences
     Route::post('/cv/{cvId}/experiences',          [CvController::class, 'storeExperience'])->name('cv.experience.store');
     Route::put('/cv/{cvId}/experiences/{expId}',   [CvController::class, 'updateExperience'])->name('cv.experience.update');
     Route::delete('/cv/{cvId}/experiences/{expId}',[CvController::class, 'destroyExperience'])->name('cv.experience.destroy');
 
-    // Education
     Route::post('/cv/{cvId}/education',            [CvController::class, 'storeEducation'])->name('cv.education.store');
     Route::put('/cv/{cvId}/education/{eduId}',     [CvController::class, 'updateEducation'])->name('cv.education.update');
     Route::delete('/cv/{cvId}/education/{eduId}',  [CvController::class, 'destroyEducation'])->name('cv.education.destroy');
 
-    // Skills
     Route::post('/cv/{cvId}/skills',               [CvController::class, 'storeSkill'])->name('cv.skill.store');
     Route::put('/cv/{cvId}/skills/{skillId}',      [CvController::class, 'updateSkill'])->name('cv.skill.update');
     Route::delete('/cv/{cvId}/skills/{skillId}',   [CvController::class, 'destroySkill'])->name('cv.skill.destroy');
 
-    // Projects
     Route::post('/cv/{cvId}/projects',             [CvController::class, 'storeProject'])->name('cv.project.store');
     Route::put('/cv/{cvId}/projects/{projectId}',  [CvController::class, 'updateProject'])->name('cv.project.update');
     Route::delete('/cv/{cvId}/projects/{projectId}',[CvController::class, 'destroyProject'])->name('cv.project.destroy');
 
-    // Reorder
     Route::post('/cv/{cvId}/reorder',              [CvController::class, 'reorder'])->name('cv.reorder');
-
-    // Photo upload
     Route::post('/cv/{id}/photo',                  [CvController::class, 'uploadPhoto'])->name('cv.photo');
-
-    // AI summary (seeker)
     Route::post('/cv/{id}/ai-summary',             [CvController::class, 'aiSummary'])->name('cv.ai-summary');
     Route::post('/cv/{id}/use-ai-summary',         [CvController::class, 'useAiSummary'])->name('cv.use-ai-summary');
 });
@@ -191,7 +158,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/employer/jobs/{vacancy}/ai-suggestions', [VacancyController::class, 'aiSuggestions'])->name('employer.jobs.ai-suggestions');
     Route::post('/employer/jobs/{vacancy}/invite/{userId}', [VacancyController::class, 'inviteUser'])->name('employer.jobs.invite');
 
-    // Quiz / Assessments
     Route::get('/quiz',                        [QuizController::class, 'index'])->name('quiz.index');
     Route::post('/quiz/generate',               [QuizController::class, 'generate'])->name('quiz.generate');
     Route::get('/quiz/{assessment}',            [QuizController::class, 'show'])->name('quiz.show');

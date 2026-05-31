@@ -18,7 +18,10 @@ class VacancyFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'title' => fake()->jobTitle(),
+            'description' => fake()->paragraph(),
+            'requirements' => fake()->sentence(),
+            'status' => 'open',
         ];
     }
 }

@@ -32,6 +32,11 @@ class Assessment extends Model
         'content_moderated_at' => 'datetime',
     ];
 
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function questions()
     {
         return $this->hasMany(QuizQuestion::class)->orderBy('sort_order');
