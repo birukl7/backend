@@ -77,9 +77,9 @@ class CreateNewUser implements CreatesNewUsers
 
         $user = User::create($attributes);
 
-        $role = Role::where('name', $input['role'])
-            ->where('guard_name', 'web')
-            ->firstOrFail();
+        $role = Role::firstOrCreate(
+            ['name' => $input['role'], 'guard_name' => 'web'],
+        );
 
         $user->assignRole($role);
 
