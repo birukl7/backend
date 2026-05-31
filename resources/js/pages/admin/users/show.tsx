@@ -3,6 +3,7 @@ import { ArrowLeft, Ban, CheckCircle, Trash2, UserX } from 'lucide-react';
 import AdminSidebarLayout from '@/layouts/admin/admin-sidebar-layout';
 import {
     adminUserDestroyPath,
+    adminUserShowPath,
     adminUserStatusPath,
     adminUsersIndexPath,
 } from '@/lib/admin-path';
