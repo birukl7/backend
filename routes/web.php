@@ -44,10 +44,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'employer'])->name('dashboard');
 });
 
-// Employer routes
+// ── Employer ───────────────────────────────────────────────────────────────────
 Route::middleware(['auth', 'verified', 'role:employer'])->group(function () {
-    Route::get('dashboard', [DashboardController::class, 'employer'])->name('dashboard');
-
     Route::get('/employer/jobs',          [VacancyController::class, 'index'])->name('employer.jobs.index');
     Route::post('/employer/jobs',         [VacancyController::class, 'store'])->name('employer.jobs.store');
     Route::put('/employer/jobs/{vacancy}', [VacancyController::class, 'update'])->name('employer.jobs.update');
@@ -72,7 +70,20 @@ Route::middleware(['auth', 'verified', 'role:employer'])->group(function () {
     Route::get('/employer/jobs/{vacancy}/ai-suggestions', [VacancyController::class, 'aiSuggestions'])->name('employer.jobs.ai-suggestions');
     Route::post('/employer/jobs/{vacancy}/invite/{userId}', [VacancyController::class, 'inviteUser'])->name('employer.jobs.invite');
 
-// ── Job seeker ────────────────────────────────────────────────────────────
+    Route::prefix('employer')->name('employer.')->group(function () {
+        Route::get('/applications',  [ApplicationController::class, 'employerIndex'])->name('applications.index');
+        Route::patch('/applications/{application}/status', [ApplicationController::class, 'updateStatus'])->name('applications.status');
+
+        Route::get('/interviews',    [InterviewController::class, 'employerIndex'])->name('interviews.index');
+        Route::post('/applications/{application}/interview', [InterviewController::class, 'store'])->name('interviews.store');
+        Route::patch('/interviews/{interview}/reschedule',   [InterviewController::class, 'reschedule'])->name('interviews.reschedule');
+        Route::patch('/interviews/{interview}/complete',     [InterviewController::class, 'complete'])->name('interviews.complete');
+        Route::delete('/interviews/{interview}',             [InterviewController::class, 'destroy'])->name('interviews.destroy');
+    });
+});
+
+// ── Job seeker ────────────────────────────────────────────────────────────────
+Route::middleware(['auth', 'verified', 'role:job_seeker'])->group(function () {
     Route::get('/my-applications',  [ApplicationController::class, 'index'])->name('applications.index');
     Route::get('/saved-jobs',       [SavedJobController::class, 'index'])->name('saved-jobs.index');
     Route::post('/saved-jobs/{vacancy}', [SavedJobController::class, 'store'])->name('saved-jobs.store');
@@ -120,11 +131,15 @@ Route::middleware(['auth', 'verified', 'role:employer'])->group(function () {
     Route::post('/cv/{id}/photo',                  [CvController::class, 'uploadPhoto'])->name('cv.photo');
     Route::post('/cv/{id}/ai-summary',             [CvController::class, 'aiSummary'])->name('cv.ai-summary');
     Route::post('/cv/{id}/use-ai-summary',         [CvController::class, 'useAiSummary'])->name('cv.use-ai-summary');
+
+    Route::get('/quiz',                        [QuizController::class, 'index'])->name('quiz.index');
+    Route::post('/quiz/generate',               [QuizController::class, 'generate'])->name('quiz.generate');
+    Route::get('/quiz/{assessment}',            [QuizController::class, 'show'])->name('quiz.show');
+    Route::post('/quiz/{assessment}/submit',    [QuizController::class, 'submit'])->name('quiz.submit');
 });
 
-
-// ── Notifications ─────────────────────────────────────────────────────────────
-Route::middleware(['auth', 'verified'])->group(function () {
+// ── Notifications (employer + job seeker) ─────────────────────────────────────
+Route::middleware(['auth', 'verified', 'role:employer|job_seeker'])->group(function () {
     Route::get('/notifications',                          [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('/api/notifications',                      [NotificationController::class, 'apiIndex'])->name('notifications.api');
     Route::patch('/notifications/{notification}/read',    [NotificationController::class, 'markRead'])->name('notifications.read');
@@ -153,15 +168,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
                                  ->get(),
         ]);
     })->name('api.vacancy.preview');
-
-    // AI suggestions + invite (employer only)
-    Route::get('/employer/jobs/{vacancy}/ai-suggestions', [VacancyController::class, 'aiSuggestions'])->name('employer.jobs.ai-suggestions');
-    Route::post('/employer/jobs/{vacancy}/invite/{userId}', [VacancyController::class, 'inviteUser'])->name('employer.jobs.invite');
-
-    Route::get('/quiz',                        [QuizController::class, 'index'])->name('quiz.index');
-    Route::post('/quiz/generate',               [QuizController::class, 'generate'])->name('quiz.generate');
-    Route::get('/quiz/{assessment}',            [QuizController::class, 'show'])->name('quiz.show');
-    Route::post('/quiz/{assessment}/submit',    [QuizController::class, 'submit'])->name('quiz.submit');
 });
 
 // ── Chat (real-time via SSE) ───────────────────────────────────────────────────
