@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\GoogleCalendarController;
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DashboardController;
@@ -30,6 +31,13 @@ Route::get('/hiring-statistics', [HiringStatsController::class, 'index'])->name(
 Route::middleware('guest')->group(function () {
     Route::get('auth/google', [GoogleAuthController::class, 'redirect'])->name('auth.google');
     Route::get('auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
+});
+
+// Google Calendar integration (authenticated users only)
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('auth/google/calendar', [GoogleCalendarController::class, 'connect'])->name('google.calendar.connect');
+    Route::get('auth/google/calendar/callback', [GoogleCalendarController::class, 'callback'])->name('google.calendar.callback');
+    Route::post('auth/google/calendar/disconnect', [GoogleCalendarController::class, 'disconnect'])->name('google.calendar.disconnect');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

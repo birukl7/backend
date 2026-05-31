@@ -1,8 +1,10 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Folder, LayoutGrid, Menu, MessageSquare, Search } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { NotificationBell } from '@/components/notification-bell';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -33,7 +35,6 @@ import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useInitials } from '@/hooks/use-initials';
 import { cn, toUrl } from '@/lib/utils';
-// import { dashboard } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
 
 type Props = {
@@ -44,38 +45,19 @@ type Role = 'employer' | 'user';
 
 const navConfig: Record<Role, NavItem[]> = {
     employer: [
-        { title: 'jk', href: '/dashboard', icon: LayoutGrid },
-        { title: 'Users', href: '/users', icon: Folder },
+        { title: 'nav.dashboard', href: '/dashboard', icon: LayoutGrid },
+        { title: 'nav.userManagement', href: '/users', icon: Folder },
     ],
     user: [
-        { title: 'Jobs', href: '/jobs' },
-        { title: 'CVs', href: '/cv' },
-        { title: 'My Applications', href: '/my-applications' },
-        { title: 'My Interviews', href: '/my-interviews' },
-        { title: 'Messages', href: '/chat', icon: MessageSquare },
+        { title: 'nav.jobs', href: '/jobs' },
+        { title: 'nav.myCVs', href: '/cv' },
+        { title: 'nav.myApplications', href: '/my-applications' },
+        { title: 'nav.myInterviews', href: '/my-interviews' },
+        { title: 'nav.messages', href: '/chat', icon: MessageSquare },
     ],
 };
 
-// const mainNavItems: NavItem[] = [
-//     {
-//         title: 'Dashboard',
-//         href: dashboard(),
-//         icon: LayoutGrid,
-//     },
-// ];
-
-const rightNavItems: NavItem[] = [
-    // {
-    //     title: 'Repository',
-    //     href: 'https://github.com/laravel/react-starter-kit',
-    //     icon: Folder,
-    // },
-    // {
-    //     title: 'Documentation',
-    //     href: 'https://laravel.com/docs/starter-kits#react',
-    //     icon: BookOpen,
-    // },
-];
+const rightNavItems: NavItem[] = [];
 
 const activeItemStyles =
     'text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100';
@@ -85,6 +67,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
     const { auth, unread_messages_count } = page.props as typeof page.props & { unread_messages_count?: number };
     const getInitials = useInitials();
     const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
+    const { t } = useTranslation();
 
     const role: Role = (auth.roles?.[0] as Role) || 'user';
     const mainNavItems: NavItem[] = navConfig[role] ?? navConfig.user;
@@ -110,7 +93,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                 className="flex h-full w-64 flex-col items-stretch justify-between bg-sidebar"
                             >
                                 <SheetTitle className="sr-only">
-                                    Navigation menu
+                                    {t('nav.navigationMenu')}
                                 </SheetTitle>
                                 <SheetHeader className="flex justify-start text-left">
                                     <AppLogoIcon className="h-6 w-6 fill-current text-black dark:text-white" />
@@ -127,7 +110,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                                     {item.icon && (
                                                         <item.icon className="h-5 w-5" />
                                                     )}
-                                                    <span>{item.title}</span>
+                                                    <span>{t(item.title)}</span>
                                                 </Link>
                                             ))}
                                         </div>
@@ -144,7 +127,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                                     {item.icon && (
                                                         <item.icon className="h-5 w-5" />
                                                     )}
-                                                    <span>{item.title}</span>
+                                                    <span>{t(item.title)}</span>
                                                 </a>
                                             ))}
                                         </div>
@@ -185,7 +168,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                             {item.icon && (
                                                 <item.icon className="mr-2 h-4 w-4" />
                                             )}
-                                            {item.title}
+                                            {t(item.title)}
                                             {item.href === '/chat' && (unread_messages_count ?? 0) > 0 && (
                                                 <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[9px] font-bold text-white">
                                                     {(unread_messages_count ?? 0) > 99 ? '99+' : unread_messages_count}
@@ -221,7 +204,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                                 className="group inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent p-0 text-sm font-medium text-accent-foreground ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
                                             >
                                                 <span className="sr-only">
-                                                    {item.title}
+                                                    {t(item.title)}
                                                 </span>
                                                 {item.icon && (
                                                     <item.icon className="size-5 opacity-80 group-hover:opacity-100" />
@@ -229,12 +212,13 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                             </a>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            <p>{item.title}</p>
+                                            <p>{t(item.title)}</p>
                                         </TooltipContent>
                                     </Tooltip>
                                 ))}
                             </div>
                         </div>
+                        <LanguageSwitcher />
                         <NotificationBell />
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>

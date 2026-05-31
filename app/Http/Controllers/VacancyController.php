@@ -135,23 +135,9 @@ class VacancyController extends Controller
      */
     private function profileCompletion(int $userId): int
     {
-        $cv = Cv::where('user_id', $userId)
-            ->where('is_default', true)
-            ->with(['skills', 'experiences'])
-            ->first()
-            ?? Cv::where('user_id', $userId)
-                ->with(['skills', 'experiences'])
-                ->first();
+        $hasCv = Cv::where('user_id', $userId)->exists();
 
-        $score = 20;
-        if ($cv) {
-            $score += 30;
-            if (! empty($cv->summary)) $score += 15;
-            if ($cv->skills->count() > 0) $score += 20;
-            if ($cv->experiences->count() > 0) $score += 15;
-        }
-
-        return $score;
+        return $hasCv ? 100 : 70;
     }
 
     public function create()

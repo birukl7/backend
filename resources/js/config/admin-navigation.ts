@@ -11,42 +11,42 @@ import type { NavItem } from '@/types';
 
 export const adminNavItems: NavItem[] = [
     {
-        title: 'Admin Dashboard',
+        title: 'nav.adminDashboard',
         href: '/admin/dashboard',
         icon: LayoutGrid,
     },
     {
-        title: 'User Management',
+        title: 'nav.userManagement',
         href: '/admin/users',
         icon: Users,
     },
     {
-        title: 'Employer Verification',
+        title: 'nav.employerVerification',
         href: '/admin/employer-verifications',
         icon: Users,
     },
     {
-        title: 'Company Verification',
+        title: 'nav.companyVerification',
         href: '/admin/company-verifications',
         icon: Building2,
     },
     {
-        title: 'Job Moderation',
+        title: 'nav.jobModeration',
         href: '/admin/job-moderation',
         icon: Briefcase,
     },
     {
-        title: 'Suspicious Users',
+        title: 'nav.suspiciousUsers',
         href: '/admin/suspicious-users',
         icon: ShieldAlert,
     },
     {
-        title: 'Content Approval',
+        title: 'nav.contentApproval',
         href: '/admin/content-approval?type=quizzes',
         icon: GraduationCap,
     },
     {
-        title: 'Reports & Analytics',
+        title: 'nav.reportsAnalytics',
         href: '/admin/reports',
         icon: BarChart3,
     },

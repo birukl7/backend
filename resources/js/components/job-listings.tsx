@@ -951,11 +951,7 @@ function ProfileSidebar({
     ];
 
     const completionColor =
-        profileCompletion >= 80
-            ? 'bg-emerald-500'
-            : profileCompletion >= 50
-              ? 'bg-blue-500'
-              : 'bg-amber-400';
+        profileCompletion >= 100 ? 'bg-emerald-500' : 'bg-blue-500';
 
     return (
         <aside className="w-60 shrink-0 space-y-3">
@@ -993,13 +989,7 @@ function ProfileSidebar({
                                     : 'Profile complete'}
                             </Link>
                             <span
-                                className={`text-[11px] font-bold ${
-                                    profileCompletion >= 80
-                                        ? 'text-emerald-600'
-                                        : profileCompletion >= 50
-                                          ? 'text-blue-600'
-                                          : 'text-amber-600'
-                                }`}
+                                className={`text-[11px] font-bold ${profileCompletion >= 100 ? 'text-emerald-600' : 'text-blue-600'}`}
                             >
                                 {profileCompletion}%
                             </span>

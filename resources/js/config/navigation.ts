@@ -24,27 +24,27 @@ export function resolveAppRole(roles: string[] | undefined): AppRole {
 
 export const employerNavItems: NavItem[] = [
     {
-        title: 'Dashboard',
+        title: 'nav.dashboard',
         href: '/dashboard',
         icon: LayoutGrid,
     },
     {
-        title: 'Posted Jobs',
+        title: 'nav.postedJobs',
         href: '/employer/jobs',
         icon: Briefcase,
     },
     {
-        title: 'Applications',
+        title: 'nav.applications',
         href: '/employer/applications',
         icon: Workflow,
     },
     {
-        title: 'Interviews',
+        title: 'nav.interviews',
         href: '/employer/interviews',
         icon: Calendar,
     },
     {
-        title: 'Messages',
+        title: 'nav.messages',
         href: '/chat',
         icon: MessageSquare,
     },
@@ -52,42 +52,42 @@ export const employerNavItems: NavItem[] = [
 
 export const jobSeekerNavItems: NavItem[] = [
     {
-        title: 'Jobs',
+        title: 'nav.jobs',
         href: '/jobs',
         icon: Briefcase,
     },
     {
-        title: 'Saved Jobs',
+        title: 'nav.savedJobs',
         href: '/saved-jobs',
         icon: Bookmark,
     },
     {
-        title: 'My CVs',
+        title: 'nav.myCVs',
         href: '/cv',
         icon: FileText,
     },
     {
-        title: 'Applications',
+        title: 'nav.applications',
         href: '/my-applications',
         icon: Users,
     },
     {
-        title: 'Interviews',
+        title: 'nav.interviews',
         href: '/my-interviews',
         icon: Calendar,
     },
     {
-        title: 'Quizzes',
+        title: 'nav.quizzes',
         href: '/quiz',
         icon: GraduationCap,
     },
     {
-        title: 'Hiring Stats',
+        title: 'nav.hiringStats',
         href: '/hiring-statistics',
         icon: BarChart3,
     },
     {
-        title: 'Messages',
+        title: 'nav.messages',
         href: '/chat',
         icon: MessageSquare,
     },

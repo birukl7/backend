@@ -19,6 +19,8 @@ class Interview extends Model
         'notes',
         'timezone',
         'status',
+        'seeker_calendar_event_id',
+        'employer_calendar_event_id',
     ];
 
     protected $casts = [

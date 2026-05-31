@@ -54,8 +54,19 @@ use Spatie\Permission\Traits\HasRoles;
     'security_flagged_at',
     'security_flagged_by',
     'status_changed_at',
+    'google_calendar_access_token',
+    'google_calendar_refresh_token',
+    'google_calendar_token_expires_at',
 ])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
+#[Hidden([
+    'password',
+    'two_factor_secret',
+    'two_factor_recovery_codes',
+    'remember_token',
+    'google_calendar_access_token',
+    'google_calendar_refresh_token',
+    'google_calendar_token_expires_at',
+])]
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
@@ -66,6 +77,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     protected $appends = [
         'avatar',
+        'google_calendar_connected',
     ];
 
     /**
@@ -85,9 +97,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'kyc_verified' => 'boolean',
             'tin_verified' => 'boolean',
             'company_info_verified' => 'boolean',
-            'is_flagged_suspicious' => 'boolean',
-            'security_flagged_at' => 'datetime',
-            'status_changed_at' => 'datetime',
+            'is_flagged_suspicious'             => 'boolean',
+            'security_flagged_at'               => 'datetime',
+            'status_changed_at'                 => 'datetime',
+            'google_calendar_token_expires_at'  => 'datetime',
         ];
     }
 
@@ -113,6 +126,14 @@ class User extends Authenticatable implements MustVerifyEmail
     public function hasPassword(): bool
     {
         return $this->password !== null && $this->password !== '';
+    }
+
+    /**
+     * Whether the user has connected their Google Calendar.
+     */
+    protected function googleCalendarConnected(): Attribute
+    {
+        return Attribute::get(fn (): bool => $this->google_calendar_refresh_token !== null);
     }
 
     /**
