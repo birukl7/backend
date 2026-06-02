@@ -134,9 +134,7 @@ export default function Index({
     return (
         <AppLayout>
             <Head title="Jobs" />
-            <div className="flex h-full flex-1 flex-col overflow-x-auto">
-                {content}
-            </div>
+            <div className="flex flex-1 flex-col">{content}</div>
         </AppLayout>
     );
 }
