@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\PublicUploads;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Laravel\Socialite\Facades\Socialite;
@@ -109,7 +109,7 @@ class GoogleAuthController extends Controller
             }
 
             $path = 'profile-photos/'.Str::uuid().'.jpg';
-            Storage::disk('public')->put($path, $response->body());
+            PublicUploads::put($path, $response->body());
 
             return $path;
         } catch (\Throwable) {

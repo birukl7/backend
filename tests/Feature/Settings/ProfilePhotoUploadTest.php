@@ -23,3 +23,12 @@ test('profile photo can be uploaded', function () {
     expect($user->profile_photo)->not->toBeNull();
     Storage::disk('public')->assertExists($user->profile_photo);
 });
+
+test('local public uploads can be served without storage symlink', function () {
+    Storage::fake('public');
+    Storage::disk('public')->put('profile-photos/test.png', 'fake-image');
+
+    $response = $this->get('/storage/profile-photos/test.png');
+
+    $response->assertOk();
+});

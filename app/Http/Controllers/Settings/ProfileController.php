@@ -7,11 +7,11 @@ use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfilePhotoUploadRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Support\PhpIniSize;
+use App\Support\PublicUploads;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -55,10 +55,10 @@ class ProfileController extends Controller
         $user = $request->user();
 
         if ($user->profile_photo && ! str_starts_with($user->profile_photo, 'http')) {
-            Storage::disk('public')->delete($user->profile_photo);
+            PublicUploads::delete($user->profile_photo);
         }
 
-        $path = $request->file('photo')->store('profile-photos', 'public');
+        $path = PublicUploads::store($request->file('photo'), 'profile-photos');
         $user->update(['profile_photo' => $path]);
 
         return to_route('profile.edit');
@@ -72,7 +72,7 @@ class ProfileController extends Controller
         $user = $request->user();
 
         if ($user->profile_photo && ! str_starts_with($user->profile_photo, 'http')) {
-            Storage::disk('public')->delete($user->profile_photo);
+            PublicUploads::delete($user->profile_photo);
         }
 
         $user->update(['profile_photo' => null]);
@@ -88,7 +88,7 @@ class ProfileController extends Controller
         $user = $request->user();
 
         if ($user->profile_photo && ! str_starts_with($user->profile_photo, 'http')) {
-            Storage::disk('public')->delete($user->profile_photo);
+            PublicUploads::delete($user->profile_photo);
         }
 
         Auth::logout();

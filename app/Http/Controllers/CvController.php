@@ -9,11 +9,12 @@ use App\Models\CvEducation;
 use App\Models\CvSkill;
 use App\Models\CvProject;
 use App\Services\AiCvSummaryService;
+use App\Services\CvResumeParserService;
 use App\Services\CvTextExtractorService;
 use App\Support\PhpIniSize;
+use App\Support\PublicUploads;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class CvController extends Controller
@@ -85,22 +86,38 @@ class CvController extends Controller
 
         $file = $request->file('file');
 
-        $path = $file->store('cv-uploads', 'public');
+        $path = PublicUploads::store($file, 'cv-uploads');
         $title = $data['title'] ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $userId = auth()->id();
+
+        Cv::where('user_id', $userId)->update(['is_default' => false]);
 
         $cv = Cv::create([
-            'user_id'           => auth()->id(),
+            'user_id'           => $userId,
             'title'             => $title,
             'source'            => 'upload',
             'file_path'         => $path,
             'original_filename' => $file->getClientOriginalName(),
             'mime_type'         => $file->getMimeType(),
-            'is_default'        => ! Cv::where('user_id', auth()->id())->exists(),
+            'is_default'        => true,
         ]);
 
-        app(CvTextExtractorService::class)->extractAndPersist($cv);
+        $extracted = app(CvTextExtractorService::class)->extractAndPersist($cv);
 
-        return redirect()->route('cv.index')->with('success', 'CV uploaded successfully.');
+        if ($extracted === null) {
+            return redirect()->route('cv.index')->with(
+                'warning',
+                'CV uploaded, but we could not extract readable text. AI job matching may not work until you upload a text-based PDF or DOCX.'
+            );
+        }
+
+        $parsed = app(CvResumeParserService::class)->parseAndPersist($cv);
+
+        $message = $parsed
+            ? 'CV uploaded and parsed for AI job matching.'
+            : 'CV uploaded. Text extracted for AI job matching.';
+
+        return redirect()->route('cv.index')->with('success', $message);
     }
 
     public function download($id)
@@ -109,7 +126,7 @@ class CvController extends Controller
 
         abort_if($cv->source !== 'upload' || ! $cv->file_path, 404);
 
-        return Storage::disk('public')->download(
+        return PublicUploads::disk()->download(
             $cv->file_path,
             $cv->original_filename ?? 'cv.pdf'
         );
@@ -157,11 +174,11 @@ class CvController extends Controller
         $cv = Cv::where('user_id', auth()->id())->findOrFail($id);
 
         if ($cv->photo_path) {
-            Storage::disk('public')->delete($cv->photo_path);
+            PublicUploads::delete($cv->photo_path);
         }
 
         if ($cv->file_path) {
-            Storage::disk('public')->delete($cv->file_path);
+            PublicUploads::delete($cv->file_path);
         }
 
         $userId = $cv->user_id;
@@ -178,10 +195,10 @@ class CvController extends Controller
         $request->validate(['photo' => 'required|image|max:3072|mimes:jpg,jpeg,png,webp']);
 
         if ($cv->photo_path) {
-            Storage::disk('public')->delete($cv->photo_path);
+            PublicUploads::delete($cv->photo_path);
         }
 
-        $path = $request->file('photo')->store('cv-photos', 'public');
+        $path = PublicUploads::store($request->file('photo'), 'cv-photos');
         $cv->update(['photo_path' => $path]);
 
         return back();

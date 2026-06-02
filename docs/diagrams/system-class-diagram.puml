@@ -1,0 +1,286 @@
+@startuml JobBoard_System_Class_Diagram
+
+' A4 portrait layout:
+'   - top to bottom direction  (vertical flow)
+'   - scale max 680 width      (~170 mm printable width)
+'   - newpage                  (3 pages for printing)
+top to bottom direction
+scale max 680 width
+
+<style>
+classDiagram {
+  Shadowing 0
+  class {
+    FontSize 11
+    Padding 4
+  }
+  package {
+    FontSize 11
+    Padding 4
+    RoundCorner 0
+  }
+  abstract {
+    FontStyle italic
+  }
+  arrow {
+    LineColor #555555
+  }
+}
+</style>
+
+skinparam classAttributeIconSize 0
+skinparam nodesep 25
+skinparam ranksep 35
+
+title Job Board Platform — UML Class Diagram (Abstract)
+
+' ══════════════════════════════════════════════════════════════════════════════
+' Page 1 — Actors, recruitment & profile
+' ══════════════════════════════════════════════════════════════════════════════
+
+abstract class User {
+  -id: int
+  +name: string
+  +email: string
+  {abstract} +getRole(): string
+}
+
+class Employer {
+  +postVacancy(): Vacancy
+  +reviewApplications(): void
+}
+
+class JobSeeker {
+  +applyTo(v: Vacancy): Application
+  +takeAssessment(): void
+}
+
+class Admin {
+  +moderateContent(): void
+  +verifyEmployer(): void
+}
+
+User <|-- Employer
+User <|-- JobSeeker
+User <|-- Admin
+
+Employer -[hidden]down- JobSeeker
+JobSeeker -[hidden]down- Admin
+
+package "Recruitment" {
+
+  class Vacancy {
+    -id: int
+    +title: string
+    +status: string
+    +close(): void
+  }
+
+  class Application {
+    -id: int
+    +status: string
+    +updateStatus(): void
+  }
+
+  class Interview {
+    -id: int
+    +scheduledAt: datetime
+    +reschedule(): void
+  }
+
+  class Shortlist {
+    -id: int
+  }
+
+  class HireReview {
+    -id: int
+    +rating: int
+  }
+
+  Vacancy -[hidden]down- Application
+  Application -[hidden]down- Interview
+  Interview -[hidden]down- Shortlist
+  Shortlist -[hidden]down- HireReview
+
+  Vacancy "1" *-- "0..*" Application : receives
+  Application "1" *-- "0..1" Interview : schedules
+  Application "1" *-- "0..*" HireReview : receives
+  Vacancy "1" *-- "0..*" Shortlist : contains
+}
+
+package "Profile" {
+
+  class CV {
+    -id: int
+    +title: string
+    +source: string
+    +export(): file
+  }
+}
+
+Employer -down-> Vacancy : posts
+JobSeeker -down-> Application : submits
+JobSeeker -down-> Shortlist : saved in
+JobSeeker -down-> CV : owns
+Application -down-> CV : uses
+
+Admin -[hidden]down- Vacancy
+
+newpage
+
+' ══════════════════════════════════════════════════════════════════════════════
+' Page 2 — Communication & skills
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "Communication" {
+
+  class Conversation {
+    -id: int
+    +status: string
+    +markRead(): void
+  }
+
+  class Message {
+    -id: int
+    +body: string
+    +send(): void
+  }
+
+  class AppNotification {
+    -id: int
+    +type: string
+    +markAsRead(): void
+  }
+
+  Conversation -[hidden]down- Message
+  Message -[hidden]down- AppNotification
+
+  Conversation "1" *-- "0..*" Message : contains
+}
+
+package "Skills & Screening" {
+
+  class Assessment {
+    -id: int
+    +skillName: string
+    +passScore: int
+  }
+
+  class QuizQuestion {
+    -id: int
+    +questionText: string
+  }
+
+  class AssessmentResult {
+    -id: int
+    +score: int
+  }
+
+  class JobScreening {
+    -id: int
+    +passingScore: int
+  }
+
+  class ScreeningResponse {
+    -id: int
+    +score: int
+  }
+
+  class AiMatch {
+    -id: int
+    +matchScore: float
+  }
+
+  class JobRecommendation {
+    -id: int
+    +rank: int
+  }
+
+  Assessment -[hidden]down- QuizQuestion
+  QuizQuestion -[hidden]down- AssessmentResult
+  AssessmentResult -[hidden]down- JobScreening
+  JobScreening -[hidden]down- ScreeningResponse
+  ScreeningResponse -[hidden]down- AiMatch
+  AiMatch -[hidden]down- JobRecommendation
+
+  Assessment "1" *-- "1..*" QuizQuestion : contains
+  Assessment "1" --> "0..*" AssessmentResult : produces
+  Vacancy "1" *-- "0..1" JobScreening : configures
+  Application "1" *-- "0..1" ScreeningResponse : has
+  Vacancy "1" --> "0..*" AiMatch : scored for
+  JobSeeker "1" --> "0..*" AiMatch : matched to
+  JobSeeker "1" --> "0..*" JobRecommendation : receives
+}
+
+Employer -down-> Conversation : messaging
+JobSeeker -down-> Conversation : messaging
+Vacancy -down-> Conversation : context
+User -down-> AppNotification : receives
+JobSeeker "1" --> "0..*" AssessmentResult : achieves
+
+Conversation -[hidden]down- Assessment
+
+newpage
+
+' ══════════════════════════════════════════════════════════════════════════════
+' Page 3 — Services & external systems
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "Application Services <<Laravel Cloud>>" {
+
+  class AiMatchingService <<service>> {
+    +computeMatch(): AiMatch
+  }
+
+  class AiScreeningService <<service>> {
+    +evaluate(): void
+  }
+
+  class AiCvSummaryService <<service>> {
+    +summarise(): void
+  }
+
+  class AiQuizService <<service>> {
+    +generateQuiz(): Assessment
+  }
+
+  class TelegramService <<service>> {
+    +publishVacancy(): void
+  }
+
+  class GoogleCalendarService <<service>> {
+    +syncInterview(): void
+  }
+
+  AiMatchingService -[hidden]down- AiScreeningService
+  AiScreeningService -[hidden]down- AiCvSummaryService
+  AiCvSummaryService -[hidden]down- AiQuizService
+  AiQuizService -[hidden]down- TelegramService
+  TelegramService -[hidden]down- GoogleCalendarService
+}
+
+package "External Systems <<Amazon EC2>>" {
+
+  class AiMatchingAPI <<external>> {
+    +match(): json
+  }
+
+  class TelegramAPI <<external>> {
+    +sendMessage(): void
+  }
+
+  AiMatchingAPI -[hidden]down- TelegramAPI
+}
+
+AiMatchingService ..> AiMatch : persists
+AiMatchingService ..> AiMatchingAPI : calls
+AiScreeningService ..> ScreeningResponse : updates
+AiCvSummaryService ..> CV : enriches
+AiQuizService ..> Assessment : creates
+TelegramService ..> Vacancy : reads
+TelegramService ..> TelegramAPI : calls
+GoogleCalendarService ..> Interview : reads
+
+AiMatchingService -[hidden]down- AiMatchingAPI
+
+@enduml

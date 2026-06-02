@@ -4,8 +4,8 @@ namespace App\Services;
 
 use App\Models\AiMatch;
 use App\Models\Cv;
+use App\Support\PublicUploads;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Smalot\PdfParser\Parser as PdfParser;
 use ZipArchive;
 
@@ -29,17 +29,27 @@ class CvTextExtractorService
             return null;
         }
 
-        $disk = Storage::disk('public');
+        $disk = PublicUploads::disk();
 
         if (! $disk->exists($cv->file_path)) {
             return null;
         }
 
         $extension = strtolower(pathinfo($cv->file_path, PATHINFO_EXTENSION));
-        $absolutePath = $disk->path($cv->file_path);
 
         try {
-            $text = $this->extractFromFile($absolutePath, $extension);
+            if (PublicUploads::usesLocalDisk()) {
+                $text = $this->extractFromFile($disk->path($cv->file_path), $extension);
+            } else {
+                $tempPath = tempnam(sys_get_temp_dir(), 'cv_');
+                file_put_contents($tempPath, $disk->get($cv->file_path));
+
+                try {
+                    $text = $this->extractFromFile($tempPath, $extension);
+                } finally {
+                    @unlink($tempPath);
+                }
+            }
         } catch (\Throwable $e) {
             Log::warning('CV text extraction failed', [
                 'cv_id' => $cv->id,

@@ -66,7 +66,22 @@ class AiQuizService
         $cv = Cv::where('user_id', $userId)->where('is_default', true)->with(['skills', 'experiences'])->first()
             ?? Cv::where('user_id', $userId)->with(['skills', 'experiences'])->first();
 
-        if (!$cv || $cv->skills->isEmpty()) {
+        if (! $cv) {
+            return null;
+        }
+
+        $cv->loadMissing(['skills', 'experiences']);
+
+        if ($cv->skills->isEmpty() && ! $cv->isUpload()) {
+            return null;
+        }
+
+        if ($cv->skills->isEmpty() && $cv->isUpload()) {
+            app(CvResumeParserService::class)->parseAndPersist($cv->fresh());
+            $cv->load('skills');
+        }
+
+        if ($cv->skills->isEmpty()) {
             return null;
         }
 

@@ -25,7 +25,10 @@ class AiMatchingService
         $uploadText = $this->extractor->textForCv($cv);
 
         if ($uploadText !== null) {
+            $cv->loadMissing(['skills', 'experiences', 'educations', 'projects']);
+
             $parts = [$uploadText];
+            $this->appendStructuredSections($cv, $parts);
             $this->appendVerifiedSkills($cv, $parts);
 
             return implode('. ', array_filter($parts));
@@ -86,6 +89,38 @@ class AiMatchingService
             $cv->user?->headline,
             $cv->user?->bio,
         ]));
+    }
+
+    /** @param list<string> $parts */
+    private function appendStructuredSections(Cv $cv, array &$parts): void
+    {
+        if ($cv->summary) {
+            $parts[] = $cv->summary;
+        }
+
+        if ($cv->skills->isNotEmpty()) {
+            $parts[] = 'Skills: '.$cv->skills
+                ->map(fn ($s) => $s->skill_name.($s->proficiency_level ? " ({$s->proficiency_level})" : ''))
+                ->implode(', ');
+        }
+
+        foreach ($cv->experiences as $exp) {
+            $parts[] = "{$exp->job_title} at {$exp->company_name}";
+            if ($exp->description) {
+                $parts[] = $exp->description;
+            }
+        }
+
+        foreach ($cv->educations as $edu) {
+            $parts[] = "{$edu->degree} in {$edu->field_of_study} at {$edu->institution_name}";
+        }
+
+        foreach ($cv->projects as $proj) {
+            $parts[] = $proj->project_name;
+            if ($proj->tech_stack) {
+                $parts[] = $proj->tech_stack;
+            }
+        }
     }
 
     /** @param list<string> $parts */
@@ -237,13 +272,7 @@ class AiMatchingService
         }
 
         // ── No (complete) cache — compute scores for missing or all vacancies ─
-        $cv = Cv::where('user_id', $userId)
-            ->where('is_default', true)
-            ->with(['skills', 'experiences', 'educations', 'projects', 'user:id,name,headline,bio'])
-            ->first()
-            ?? Cv::where('user_id', $userId)
-                ->with(['skills', 'experiences', 'educations', 'projects', 'user:id,name,headline,bio'])
-                ->first();
+        $cv = $this->resolveCvForUser($userId);
 
         if (!$cv) {
             return [];
@@ -285,16 +314,58 @@ class AiMatchingService
             return 'Create a CV to see AI match scores on jobs.';
         }
 
-        $cv = Cv::where('user_id', $userId)
-            ->with(['skills', 'experiences', 'educations', 'projects', 'user:id,name,headline,bio'])
-            ->orderByDesc('is_default')
-            ->first();
+        $cv = $this->resolveCvForUser($userId);
 
         if ($cv && trim($this->buildResumeText($cv)) === '') {
+            if ($cv->isUpload()) {
+                return 'We could not read text from your uploaded resume. Try a PDF or DOCX with selectable text, or use the CV builder.';
+            }
+
             return 'Add a summary, skills, or experience to your CV to enable AI match scores.';
         }
 
         return null;
+    }
+
+    /**
+     * Pick the CV with the richest content for matching (prefers default, then any usable CV).
+     */
+    public function resolveCvForUser(int $userId): ?Cv
+    {
+        $cvs = Cv::where('user_id', $userId)
+            ->with(['skills', 'experiences', 'educations', 'projects', 'user:id,name,headline,bio'])
+            ->orderByDesc('is_default')
+            ->orderByDesc('updated_at')
+            ->get();
+
+        foreach ($cvs as $cv) {
+            if ($this->hasSubstantiveResumeContent($cv)) {
+                return $cv;
+            }
+        }
+
+        foreach ($cvs as $cv) {
+            if (trim($this->buildResumeText($cv)) !== '') {
+                return $cv;
+            }
+        }
+
+        return $cvs->first();
+    }
+
+    private function hasSubstantiveResumeContent(Cv $cv): bool
+    {
+        if ($cv->isUpload() && filled($cv->extracted_text)) {
+            return true;
+        }
+
+        $cv->loadMissing(['skills', 'experiences', 'educations', 'projects']);
+
+        return filled($cv->summary)
+            || $cv->skills->isNotEmpty()
+            || $cv->experiences->isNotEmpty()
+            || $cv->educations->isNotEmpty()
+            || $cv->projects->isNotEmpty();
     }
 
     /**
@@ -339,10 +410,7 @@ class AiMatchingService
             ]);
         }
 
-        $cv = Cv::where('user_id', $userId)
-            ->with(['skills', 'experiences', 'educations', 'projects', 'user:id,name,headline,bio'])
-            ->orderByDesc('is_default')
-            ->first();
+        $cv = $this->resolveCvForUser($userId);
 
         $resumeText = $cv ? $this->buildResumeText($cv) : '';
         $resumeLen  = strlen(trim($resumeText));

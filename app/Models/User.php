@@ -3,15 +3,16 @@
 namespace App\Models;
 
 use App\Notifications\QueuedVerifyEmail;
+use App\Support\PublicUploads;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Storage;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -97,10 +98,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'kyc_verified' => 'boolean',
             'tin_verified' => 'boolean',
             'company_info_verified' => 'boolean',
-            'is_flagged_suspicious'             => 'boolean',
-            'security_flagged_at'               => 'datetime',
-            'status_changed_at'                 => 'datetime',
-            'google_calendar_token_expires_at'  => 'datetime',
+            'is_flagged_suspicious' => 'boolean',
+            'security_flagged_at' => 'datetime',
+            'status_changed_at' => 'datetime',
+            'google_calendar_token_expires_at' => 'datetime',
         ];
     }
 
@@ -119,7 +120,7 @@ class User extends Authenticatable implements MustVerifyEmail
                 return $this->profile_photo;
             }
 
-            return asset('storage/'.$this->profile_photo);
+            return PublicUploads::url($this->profile_photo);
         });
     }
 
@@ -147,22 +148,22 @@ class User extends Authenticatable implements MustVerifyEmail
     /**
      * Get all app notifications for this user, newest first.
      */
-    public function appNotifications(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function appNotifications(): HasMany
     {
         return $this->hasMany(AppNotification::class, 'user_id')->latest();
     }
 
-    public function applications(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function applications(): HasMany
     {
         return $this->hasMany(Application::class);
     }
 
-    public function vacancies(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function vacancies(): HasMany
     {
         return $this->hasMany(Vacancy::class);
     }
 
-    public function cvs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function cvs(): HasMany
     {
         return $this->hasMany(Cv::class);
     }

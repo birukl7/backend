@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\PublicUploads;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Cv extends Model
 {
@@ -20,24 +21,24 @@ class Cv extends Model
     protected $appends = ['photo_url', 'file_url'];
 
     protected $casts = [
-        'is_default'              => 'boolean',
-        'section_order'           => 'array',
-        'ai_suggestions'          => 'array',
-        'ai_improvements'         => 'array',
-        'ai_strength_score'       => 'integer',
+        'is_default' => 'boolean',
+        'section_order' => 'array',
+        'ai_suggestions' => 'array',
+        'ai_improvements' => 'array',
+        'ai_strength_score' => 'integer',
         'ai_summary_generated_at' => 'datetime',
-        'extracted_at'            => 'datetime',
-        'summary_moderated_at'    => 'datetime',
+        'extracted_at' => 'datetime',
+        'summary_moderated_at' => 'datetime',
     ];
 
     public function getPhotoUrlAttribute(): ?string
     {
-        return $this->photo_path ? asset('storage/' . $this->photo_path) : null;
+        return PublicUploads::url($this->photo_path);
     }
 
     public function getFileUrlAttribute(): ?string
     {
-        return $this->file_path ? asset('storage/' . $this->file_path) : null;
+        return PublicUploads::url($this->file_path);
     }
 
     public function isUpload(): bool

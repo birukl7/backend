@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Public Uploads Disk
+    |--------------------------------------------------------------------------
+    |
+    | Disk used for user-facing uploads (profile photos, CV files, etc.).
+    | On Laravel Cloud, attach a public Object Storage bucket so uploads
+    | persist across deploys; AWS_* env vars are injected automatically.
+    | Locally, the "public" disk is used with a /storage route fallback.
+    |
+    */
+
+    'public_uploads_disk' => env('PUBLIC_UPLOADS_DISK', env('AWS_BUCKET') ? 's3' : 'public'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |
@@ -33,7 +47,6 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
             'throw' => false,
             'report' => false,
         ],
@@ -43,6 +56,7 @@ return [
             'root' => storage_path('app/public'),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
+            'serve' => true,
             'throw' => false,
             'report' => false,
         ],

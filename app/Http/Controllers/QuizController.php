@@ -33,31 +33,6 @@ class QuizController extends Controller
     {
         $userId = auth()->id();
 
-        // Global quizzes (no user_id)
-        $assessments = Assessment::where('is_active', true)
-            ->whereNull('user_id')
-            ->withCount('questions')
-            ->get()
-            ->map(function ($a) use ($userId) {
-                $best = AssessmentResult::where('assessment_id', $a->id)
-                    ->where('user_id', $userId)
-                    ->orderByDesc('score')
-                    ->first();
-
-                return [
-                    'id'                 => $a->id,
-                    'title'              => $a->title,
-                    'description'        => $a->description,
-                    'skill_name'         => $a->skill_name,
-                    'category'           => $a->category,
-                    'difficulty'         => $a->difficulty,
-                    'time_limit_minutes' => $a->time_limit_minutes,
-                    'pass_score'         => $a->pass_score,
-                    'questions_count'    => $a->questions_count,
-                    'user_best_result'   => $this->formatResult($best),
-                ];
-            });
-
         // AI-generated quiz for this user (if cached)
         $aiQuiz = $quizService->getCached($userId);
 
@@ -82,11 +57,14 @@ class QuizController extends Controller
             ];
         }
 
-        // Does the user have skills in their CV?
-        $hasCvSkills = CvSkill::whereIn('cv_id', \App\Models\Cv::where('user_id', $userId)->pluck('id'))->exists();
+        $hasCvSkills = CvSkill::whereIn('cv_id', \App\Models\Cv::where('user_id', $userId)->pluck('id'))->exists()
+            || Cv::where('user_id', $userId)
+                ->where('source', 'upload')
+                ->whereNotNull('extracted_text')
+                ->where('extracted_text', '!=', '')
+                ->exists();
 
         return inertia('quiz/index', [
-            'assessments'    => $assessments,
             'ai_quiz'        => $aiQuizData,
             'has_cv_skills'  => $hasCvSkills,
             'llm_configured' => $quizService->isConfigured(),
