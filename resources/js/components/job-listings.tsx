@@ -2,9 +2,10 @@ import { usePage, useForm, router, Link } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import ScreeningChat from '@/components/screening-chat';
 import { DashboardWelcome } from '@/components/dashboard-welcome';
-import { VerificationBadges, isEmployerVerified } from '@/components/verification-badges';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { VerificationBadges, isEmployerVerified } from '@/components/verification-badges';
 import { useInitials } from '@/hooks/use-initials';
+import { getFirstName } from '@/lib/welcome';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -92,7 +93,7 @@ interface AuthUser {
     id: number;
     name: string;
     email: string;
-    avatar?: string;
+    avatar?: string | null;
     profile_photo_url?: string;
 }
 
@@ -906,6 +907,66 @@ function ApplyDialog({
 
 // ─── Profile Sidebar ─────────────────────────────────────────────────────────
 
+function ProfileAvatarRing({
+    photoUrl,
+    name,
+    completion,
+}: {
+    photoUrl: string | null;
+    name: string;
+    completion: number;
+}) {
+    const getInitials = useInitials();
+    const size = 80;
+    const stroke = 3;
+    const radius = (size - stroke) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const progress = Math.min(100, Math.max(0, completion));
+    const dashOffset = circumference - (progress / 100) * circumference;
+    const ringColor =
+        progress >= 100 ? 'stroke-emerald-500' : 'stroke-blue-500';
+
+    return (
+        <div
+            className="relative mx-auto shrink-0"
+            style={{ width: size, height: size }}
+        >
+            <svg
+                className="absolute inset-0 -rotate-90"
+                width={size}
+                height={size}
+                aria-hidden
+            >
+                <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    fill="none"
+                    className="stroke-slate-100"
+                    strokeWidth={stroke}
+                />
+                <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    fill="none"
+                    className={`${ringColor} transition-all duration-500`}
+                    strokeWidth={stroke}
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={dashOffset}
+                />
+            </svg>
+            <Avatar className="absolute inset-[5px] h-[70px] w-[70px] overflow-hidden rounded-full border-2 border-white shadow-sm">
+                <AvatarImage src={photoUrl ?? undefined} alt={name} />
+                <AvatarFallback className="rounded-full bg-gradient-to-br from-blue-100 to-blue-50 text-base font-semibold text-blue-700">
+                    {getInitials(name)}
+                </AvatarFallback>
+            </Avatar>
+        </div>
+    );
+}
+
 function ProfileSidebar({
     user,
     stats,
@@ -915,10 +976,8 @@ function ProfileSidebar({
     stats?: SidebarStats;
     profileCompletion: number;
 }) {
-    const getInitials = useInitials();
-    const photoUrl = user.avatar ?? user.profile_photo_url;
-    const firstName = user.name.trim().split(/\s+/)[0] ?? user.name;
-    const isComplete = profileCompletion >= 100;
+    const photoUrl = user.avatar ?? user.profile_photo_url ?? null;
+    const firstName = getFirstName(user.name);
 
     const statCards = [
         {
@@ -952,87 +1011,45 @@ function ProfileSidebar({
     ];
 
     return (
-        <aside className="sticky top-20 w-64 shrink-0 self-start">
-            <div className="max-h-[calc(100vh-6rem)] space-y-3 overflow-y-auto overscroll-contain pr-1">
-                <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-                    <div className="relative h-28 overflow-hidden bg-gradient-to-br from-indigo-600 via-blue-600 to-violet-600">
-                        <div
-                            className="absolute inset-0 opacity-30"
-                            style={{
-                                backgroundImage:
-                                    'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.35) 1px, transparent 0)',
-                                backgroundSize: '18px 18px',
-                            }}
-                        />
-                        <div className="absolute -right-8 -bottom-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
-                        <div className="absolute -top-6 -left-6 h-24 w-24 rounded-full bg-violet-400/20 blur-xl" />
-                    </div>
+        <aside className="w-60 shrink-0 space-y-3">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white px-4 py-5 text-center shadow-sm">
+                <ProfileAvatarRing
+                    photoUrl={photoUrl}
+                    name={user.name}
+                    completion={profileCompletion}
+                />
 
-                    <div className="relative px-4 pb-4">
-                        <div className="absolute -top-10 left-4">
-                            <Avatar className="h-20 w-20 border-4 border-white shadow-lg ring-1 ring-slate-200/80">
-                                <AvatarImage src={photoUrl} alt={user.name} />
-                                <AvatarFallback className="bg-gradient-to-br from-blue-100 to-indigo-100 text-lg font-semibold text-blue-800">
-                                    {getInitials(user.name)}
-                                </AvatarFallback>
-                            </Avatar>
-                        </div>
+                <p className="mt-3 text-[15px] font-semibold text-slate-900">
+                    {firstName}
+                </p>
+                <p className="mt-0.5 truncate text-[12px] text-slate-400">
+                    {user.email}
+                </p>
 
-                        <div className="pt-12">
-                            <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">
-                                Welcome back
-                            </p>
-                            <h2 className="mt-0.5 text-lg leading-tight font-semibold text-slate-900">
-                                {firstName}
-                            </h2>
-                            <p className="mt-1 truncate text-sm text-slate-500">
-                                {user.email}
-                            </p>
-                        </div>
+                {profileCompletion >= 100 ? (
+                    <p className="mt-3 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                        <svg
+                            className="h-3 w-3"
+                            viewBox="0 0 16 16"
+                            fill="currentColor"
+                            aria-hidden
+                        >
+                            <path d="M6.5 11.5L3 8l1-1 2.5 2.5L12 4l1 1-6.5 6.5z" />
+                        </svg>
+                        Profile complete
+                    </p>
+                ) : (
+                    <Link
+                        href="/settings/profile"
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-[11px] font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                    >
+                        {profileCompletion}% complete
+                        <span aria-hidden>→</span>
+                    </Link>
+                )}
+            </div>
 
-                        {!isComplete ? (
-                            <Link
-                                href="/settings/profile"
-                                className="mt-4 block rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-3 transition-colors hover:border-blue-200 hover:from-blue-100/80 hover:to-indigo-100/80"
-                            >
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-xs font-semibold text-blue-900">
-                                        Complete your profile
-                                    </span>
-                                    <span className="text-xs font-bold text-blue-600">
-                                        {profileCompletion}%
-                                    </span>
-                                </div>
-                                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/80">
-                                    <div
-                                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
-                                        style={{ width: `${profileCompletion}%` }}
-                                    />
-                                </div>
-                                <p className="mt-2 text-[11px] leading-snug text-blue-700/80">
-                                    A fuller profile improves AI job matches.
-                                </p>
-                            </Link>
-                        ) : (
-                            <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2.5">
-                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white">
-                                    <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
-                                        <path
-                                            fillRule="evenodd"
-                                            d="M12.416 3.376a.75.75 0 01.208 1.04l-5 7.5a.75.75 0 01-1.154.114l-3-3a.75.75 0 011.06-1.06l2.353 2.353 4.493-6.739a.75.75 0 011.04-.208z"
-                                            clipRule="evenodd"
-                                        />
-                                    </svg>
-                                </span>
-                                <p className="text-xs font-medium text-emerald-800">
-                                    Profile ready for matching
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm">
+            <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-3">
                 {statCards.map((s) => (
                     <Link
                         key={s.label}
@@ -1047,7 +1064,7 @@ function ProfileSidebar({
                 ))}
             </div>
 
-            <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+            <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                 {[
                     {
                         icon: (
@@ -1165,7 +1182,6 @@ function ProfileSidebar({
                         </svg>
                     </Link>
                 ))}
-            </div>
             </div>
         </aside>
     );
