@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
-import { FileText, Paperclip, Send, Wifi, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { FileText, Paperclip, Send, Wifi, X, ZoomIn } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChatImageViewer } from '@/components/chat-image-viewer';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useInitials } from '@/hooks/use-initials';
 
@@ -180,7 +181,13 @@ function ConvItem({
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 
-function Bubble({ msg }: { msg: ChatMessage }) {
+function Bubble({
+    msg,
+    onImageClick,
+}: {
+    msg: ChatMessage;
+    onImageClick?: (messageId: number) => void;
+}) {
     const hasBody = msg.body.trim().length > 0;
 
     return (
@@ -205,18 +212,23 @@ function Bubble({ msg }: { msg: ChatMessage }) {
                     </p>
                 )}
                 {msg.attachment?.type === 'image' && (
-                    <a
-                        href={msg.attachment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mb-2 block overflow-hidden rounded-lg"
+                    <button
+                        type="button"
+                        onClick={() => onImageClick?.(msg.id)}
+                        className="group/img relative mb-2 block w-full cursor-zoom-in overflow-hidden rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                        aria-label={`View image: ${msg.attachment.name}`}
                     >
                         <img
                             src={msg.attachment.url}
                             alt={msg.attachment.name}
-                            className="max-h-64 max-w-full object-contain"
+                            className="max-h-64 max-w-full object-contain transition-opacity group-hover/img:opacity-90"
                         />
-                    </a>
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/img:bg-black/20">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover/img:opacity-100">
+                                <ZoomIn className="h-4 w-4" aria-hidden />
+                            </span>
+                        </span>
+                    </button>
                 )}
                 {msg.attachment?.type === 'pdf' && (
                     <a
@@ -280,6 +292,7 @@ export function ChatWindow({
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const [pendingPreview, setPendingPreview] = useState<string | null>(null);
     const [attachError, setAttachError] = useState<string | null>(null);
+    const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -287,6 +300,24 @@ export function ChatWindow({
     // Always holds the highest real message id we have seen (never a temp id)
     const lastRealIdRef = useRef<number>(
         initialMessages.filter((m) => m.id < 1_000_000_000).reduce((max, m) => Math.max(max, m.id), 0),
+    );
+
+    const viewerImages = useMemo(() => {
+        return messages
+            .filter((m) => m.attachment?.type === 'image' && m.attachment.url)
+            .map((m) => ({
+                messageId: m.id,
+                url: m.attachment!.url,
+                name: m.attachment!.name,
+            }));
+    }, [messages]);
+
+    const openImageViewer = useCallback(
+        (messageId: number) => {
+            const idx = viewerImages.findIndex((img) => img.messageId === messageId);
+            if (idx >= 0) setViewerIndex(idx);
+        },
+        [viewerImages],
     );
 
     // Scroll to bottom when messages change
@@ -421,6 +452,7 @@ export function ChatWindow({
     const selectConversation = useCallback((conv: Conversation) => {
         setActiveConv(conv);
         setMessages([]);
+        setViewerIndex(null);
         clearPendingAttachment();
         lastRealIdRef.current = 0;
         // Navigate to set URL param and load messages via Inertia
@@ -583,6 +615,13 @@ export function ChatWindow({
     const groups = groupByDay(messages);
 
     return (
+        <>
+        <ChatImageViewer
+            images={viewerImages.map(({ url, name }) => ({ url, name }))}
+            index={viewerIndex}
+            onClose={() => setViewerIndex(null)}
+            onIndexChange={setViewerIndex}
+        />
         <div className="flex h-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
             {/* ── Conversation List ── */}
             <div className="flex w-72 shrink-0 flex-col border-r border-slate-200 dark:border-slate-700">
@@ -666,7 +705,13 @@ export function ChatWindow({
                                             </div>
                                             <div className="space-y-2">
                                                 {g.messages.map((m) => (
-                                                    <Bubble key={m.id} msg={m} />
+                                                    <Bubble
+                                                        key={m.id}
+                                                        msg={m}
+                                                        onImageClick={
+                                                            openImageViewer
+                                                        }
+                                                    />
                                                 ))}
                                             </div>
                                         </div>
@@ -778,5 +823,6 @@ export function ChatWindow({
                 )}
             </div>
         </div>
+        </>
     );
 }
