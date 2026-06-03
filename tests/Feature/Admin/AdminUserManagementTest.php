@@ -25,7 +25,9 @@ test('admin can view a user profile', function () {
     $admin = User::factory()->create();
     $admin->assignRole('admin');
 
-    $target = User::factory()->create();
+    $target = User::factory()->create([
+        'profile_photo' => 'https://example.com/avatar.jpg',
+    ]);
     $target->assignRole('job_seeker');
 
     $this->actingAs($admin)
@@ -33,7 +35,8 @@ test('admin can view a user profile', function () {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('admin/users/show')
-            ->where('user.id', $target->id));
+            ->where('user.id', $target->id)
+            ->where('user.avatar', 'https://example.com/avatar.jpg'));
 });
 
 test('admin can suspend a user', function () {

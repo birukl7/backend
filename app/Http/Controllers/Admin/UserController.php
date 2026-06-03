@@ -118,6 +118,7 @@ class UserController extends Controller
     {
         return [
             ...$this->userSummary($user),
+            'avatar' => $user->avatar,
             'headline' => $user->headline,
             'bio' => $user->bio,
             'location' => $user->location,

@@ -1,5 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, Ban, CheckCircle, Trash2, UserX } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useInitials } from '@/hooks/use-initials';
 import AdminSidebarLayout from '@/layouts/admin/admin-sidebar-layout';
 import {
     adminUserDestroyPath,
@@ -15,6 +17,7 @@ interface UserDetail {
     id: number;
     name: string;
     email: string;
+    avatar: string | null;
     roles: string[];
     account_status: AccountStatus;
     email_verified_at: string | null;
@@ -91,6 +94,7 @@ function formatDate(iso: string | null) {
 
 export default function AdminUserShow() {
     const { user, activity } = usePage().props as unknown as Props;
+    const getInitials = useInitials();
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Admin', href: '/admin/dashboard' },
@@ -137,9 +141,16 @@ export default function AdminUserShow() {
 
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div className="flex items-start gap-4">
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-lg font-bold text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">
-                            {user.name.slice(0, 2).toUpperCase()}
-                        </div>
+                        <Avatar className="h-14 w-14 shrink-0 rounded-2xl">
+                            <AvatarImage
+                                src={user.avatar ?? undefined}
+                                alt={user.name}
+                                className="rounded-2xl object-cover"
+                            />
+                            <AvatarFallback className="rounded-2xl bg-indigo-100 text-lg font-bold text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">
+                                {getInitials(user.name)}
+                            </AvatarFallback>
+                        </Avatar>
                         <div>
                             <h1 className="text-xl font-bold text-slate-900 dark:text-white">
                                 {user.name}

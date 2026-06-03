@@ -263,67 +263,78 @@ export default function Register() {
                                             <InputError message={errors.employer_type} />
                                         </div>
 
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                                                National ID (FAN) <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input 
-                                                name="national_id" 
-                                                required
-                                                inputMode="numeric"
-                                                pattern="\d{16}"
-                                                minLength={16}
-                                                maxLength={16}
-                                                placeholder="16-digit FAN number" 
-                                                className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                                            />
-                                            <InputError message={errors.national_id} />
-                                        </div>
-
-                                        {employerType === 'company' && (
+                                        {employerType !== '' && (
                                             <div className="space-y-1.5">
                                                 <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                                                    TIN Number <span className="text-red-500">*</span>
+                                                    National ID (FAN) <span className="text-red-500">*</span>
                                                 </Label>
                                                 <Input 
-                                                    name="company_tin_number" 
+                                                    name="national_id" 
                                                     required
-                                                    placeholder="Tax identification number" 
+                                                    inputMode="numeric"
+                                                    pattern="\d{16}"
+                                                    minLength={16}
+                                                    maxLength={16}
+                                                    placeholder="16-digit FAN number" 
                                                     className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                                                 />
-                                                <InputError message={errors.company_tin_number} />
+                                                <InputError message={errors.national_id} />
                                             </div>
                                         )}
 
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">Company Name</Label>
-                                            <Input 
-                                                name="company_name" 
-                                                placeholder="Your company" 
-                                                className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                                            />
-                                            <InputError message={errors.company_name} />
-                                        </div>
+                                        {employerType === 'company' && (
+                                            <>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                                                        TIN Number <span className="text-red-500">*</span>
+                                                    </Label>
+                                                    <Input 
+                                                        name="company_tin_number" 
+                                                        required
+                                                        placeholder="Tax identification number" 
+                                                        className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                                                    />
+                                                    <InputError message={errors.company_tin_number} />
+                                                </div>
 
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">Company Website</Label>
-                                            <Input 
-                                                name="company_website" 
-                                                placeholder="https://..." 
-                                                className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                                            />
-                                            <InputError message={errors.company_website} />
-                                        </div>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                                                        Company Name <span className="text-red-500">*</span>
+                                                    </Label>
+                                                    <Input 
+                                                        name="company_name" 
+                                                        required
+                                                        placeholder="Your company" 
+                                                        className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                                                    />
+                                                    <InputError message={errors.company_name} />
+                                                </div>
 
-                                        <div className="col-span-1 md:col-span-2 space-y-1.5">
-                                            <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">Company Description</Label>
-                                            <Input 
-                                                name="company_description" 
-                                                placeholder="What does your company do?" 
-                                                className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                                            />
-                                            <InputError message={errors.company_description} />
-                                        </div>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                                                        Company Website <span className="text-red-500">*</span>
+                                                    </Label>
+                                                    <Input 
+                                                        name="company_website" 
+                                                        required
+                                                        type="url"
+                                                        placeholder="https://..." 
+                                                        className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                                                    />
+                                                    <InputError message={errors.company_website} />
+                                                </div>
+
+                                                <div className="col-span-1 md:col-span-2 space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">Company Description</Label>
+                                                    <Input 
+                                                        name="company_description" 
+                                                        placeholder="What does your company do?" 
+                                                        className="h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                                                    />
+                                                    <InputError message={errors.company_description} />
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 )}
 

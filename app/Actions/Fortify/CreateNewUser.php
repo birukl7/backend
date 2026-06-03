@@ -33,13 +33,34 @@ class CreateNewUser implements CreatesNewUsers
         ];
 
         if (($input['role'] ?? null) === 'employer') {
+            $isCompanyEmployer = ($input['employer_type'] ?? '') === 'company';
+
             $rules['employer_type'] = ['required', 'string', Rule::in(['basic', 'company'])];
             $rules['national_id'] = ['required', 'string', 'regex:/^\d{16}$/'];
             $rules['company_tin_number'] = [
-                Rule::requiredIf(fn () => ($input['employer_type'] ?? '') === 'company'),
+                Rule::requiredIf(fn () => $isCompanyEmployer),
+                Rule::prohibitedIf(fn () => ! $isCompanyEmployer),
                 'nullable',
                 'string',
                 'max:255',
+            ];
+            $rules['company_name'] = [
+                Rule::requiredIf(fn () => $isCompanyEmployer),
+                Rule::prohibitedIf(fn () => ! $isCompanyEmployer),
+                'nullable',
+                'string',
+                'max:255',
+            ];
+            $rules['company_website'] = [
+                Rule::requiredIf(fn () => $isCompanyEmployer),
+                Rule::prohibitedIf(fn () => ! $isCompanyEmployer),
+                'nullable',
+                'url',
+            ];
+            $rules['company_description'] = [
+                Rule::prohibitedIf(fn () => ! $isCompanyEmployer),
+                'nullable',
+                'string',
             ];
         }
 
