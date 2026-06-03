@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import AppLogo from '@/components/app-logo';
+import { EmployerCompleteProfilePrompt } from '@/components/employer-complete-profile-prompt';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import {
@@ -43,6 +44,7 @@ export function AppSidebar() {
 
             <SidebarFooter>
                 <NavUser />
+                <EmployerCompleteProfilePrompt />
             </SidebarFooter>
         </Sidebar>
     );

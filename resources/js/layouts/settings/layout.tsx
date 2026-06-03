@@ -1,15 +1,16 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import type { PropsWithChildren } from 'react';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { resolveAppRole } from '@/config/navigation';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { cn, toUrl } from '@/lib/utils';
 import { edit } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
-import type { NavItem } from '@/types';
+import type { Auth, NavItem } from '@/types';
 
-const sidebarNavItems: NavItem[] = [
+const baseSidebarNavItems: NavItem[] = [
     {
         title: 'Profile',
         href: edit(),
@@ -24,6 +25,21 @@ const sidebarNavItems: NavItem[] = [
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { isCurrentOrParentUrl } = useCurrentUrl();
+    const { auth } = usePage<{ auth: Auth }>().props;
+    const role = resolveAppRole(auth.roles);
+
+    const sidebarNavItems =
+        role === 'employer'
+            ? [
+                  ...baseSidebarNavItems.slice(0, 1),
+                  {
+                      title: 'Verification',
+                      href: '/settings/employer-verification',
+                      icon: null,
+                  },
+                  ...baseSidebarNavItems.slice(1),
+              ]
+            : baseSidebarNavItems;
 
     // When server-side rendering, we only render the layout on the client...
     if (typeof window === 'undefined') {

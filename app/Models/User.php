@@ -79,6 +79,8 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $appends = [
         'avatar',
         'google_calendar_connected',
+        'needs_employer_profile_completion',
+        'should_show_employer_verification_prompt',
     ];
 
     /**
@@ -143,6 +145,46 @@ class User extends Authenticatable implements MustVerifyEmail
     protected function googleCalendarConnected(): Attribute
     {
         return Attribute::get(fn (): bool => $this->google_calendar_refresh_token !== null);
+    }
+
+    protected function needsEmployerProfileCompletion(): Attribute
+    {
+        return Attribute::get(function (): bool {
+            if (! $this->hasRole('employer')) {
+                return false;
+            }
+
+            if ($this->employer_type === null || blank($this->national_id)) {
+                return true;
+            }
+
+            if ($this->employer_type === 'company') {
+                return blank($this->company_name)
+                    || blank($this->company_website)
+                    || blank($this->company_tin_number);
+            }
+
+            return false;
+        });
+    }
+
+    protected function shouldShowEmployerVerificationPrompt(): Attribute
+    {
+        return Attribute::get(function (): bool {
+            if (! $this->hasRole('employer')) {
+                return false;
+            }
+
+            if ($this->needs_employer_profile_completion) {
+                return true;
+            }
+
+            if ($this->employer_type === 'company') {
+                return $this->company_verification_status === 'rejected';
+            }
+
+            return $this->employer_verification_status === 'rejected';
+        });
     }
 
     /**

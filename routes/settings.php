@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\EmployerVerificationController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Support\Facades\Route;
@@ -11,6 +12,13 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('settings/profile/photo', [ProfileController::class, 'uploadPhoto'])->name('profile.photo');
     Route::delete('settings/profile/photo', [ProfileController::class, 'destroyPhoto'])->name('profile.photo.destroy');
+
+    Route::middleware('role:employer')->group(function () {
+        Route::get('settings/employer-verification', [EmployerVerificationController::class, 'edit'])
+            ->name('employer-verification.edit');
+        Route::patch('settings/employer-verification', [EmployerVerificationController::class, 'update'])
+            ->name('employer-verification.update');
+    });
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

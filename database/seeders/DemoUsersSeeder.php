@@ -62,12 +62,21 @@ class DemoUsersSeeder extends Seeder
         );
 
         $employer->forceFill([
-            'password'          => bcrypt(self::DEMO_PASSWORD),
-            'email_verified_at' => $employer->email_verified_at ?? now(),
-            'company_name'        => 'Horizon Digital Studio',
-            'company_description' => 'A product studio in Addis Ababa building web and mobile experiences for startups and enterprises across East Africa.',
-            'company_website'     => 'https://horizondigital.example.com',
-            'location'            => 'Addis Ababa, Ethiopia',
+            'password'              => bcrypt(self::DEMO_PASSWORD),
+            'email_verified_at'     => $employer->email_verified_at ?? now(),
+            'employer_type'         => 'company',
+            'national_id'           => '1234567890123456',
+            'company_name'          => 'Horizon Digital Studio',
+            'company_description'   => 'A product studio in Addis Ababa building web and mobile experiences for startups and enterprises across East Africa.',
+            'company_website'       => 'https://horizondigital.example.com',
+            'company_tin_number'    => 'TIN-009876543210',
+            'location'              => 'Addis Ababa, Ethiopia',
+            'employer_verification_status' => 'approved',
+            'employer_verified_at'  => now(),
+            'employer_submitted_at' => now(),
+            'company_verification_status'  => 'approved',
+            'company_verified_at'   => now(),
+            'company_submitted_at'  => now(),
         ])->save();
 
         if (! $employer->hasRole('employer')) {
