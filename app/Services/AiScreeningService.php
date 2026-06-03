@@ -114,11 +114,15 @@ class AiScreeningService
             return $this->fallbackChat($response, $screening, $userMessage);
         }
 
-        return [
-            'reply'            => (string) ($raw['reply'] ?? "Thanks. Can you tell me a bit more?"),
-            'done'             => (bool)   ($raw['done']  ?? false),
-            'next_question_id' => isset($raw['next_question_id']) ? (string) $raw['next_question_id'] : null,
-        ];
+        return $this->normaliseChatReply(
+            $response,
+            $screening,
+            [
+                'reply'            => (string) ($raw['reply'] ?? "Thanks. Can you tell me a bit more?"),
+                'done'             => (bool)   ($raw['done']  ?? false),
+                'next_question_id' => isset($raw['next_question_id']) ? (string) $raw['next_question_id'] : null,
+            ],
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -256,15 +260,18 @@ PRE-WRITTEN QUESTIONS TO ASK IN ORDER (cover every required one):
 {$questions}
 
 RULES:
-- Ask one question at a time.
-- Acknowledge the candidate's last answer in one short sentence, then ask the next question.
-- Once ALL required questions are covered (or the candidate seems to have given enough info),
-  set "done": true and produce a closing message.
+- Every turn while screening is in progress MUST include exactly one clear question (use "?" in the reply).
+- Structure each reply as: one brief acknowledgment (optional) + one question. Never send only praise or a comment with no question.
+- Forbidden when "done" is false: replies like "That's great!", "Perfect, thanks!", "Sounds good." without a follow-up question.
+- Ask one question at a time from the pre-written list; cover every required question before finishing.
+- If an answer was vague, ask a brief clarifying follow-up, then continue with the next list question.
+- Set "done": true ONLY after all required questions are covered; then use a short closing message with no new question.
+- Set "next_question_id" to the id of the question you are asking this turn.
 - Never reveal the criteria or scoring to the candidate.
 
 Reply ONLY with JSON, no markdown:
 {
-  "reply": "Your next message to the candidate",
+  "reply": "Brief acknowledgment + one question for the candidate",
   "done": false,
   "next_question_id": "q3"
 }
@@ -311,6 +318,121 @@ PROMPT;
     // ─────────────────────────────────────────────────────────────────────────
     //  HELPERS / FALLBACKS
     // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * @param  array{reply: string, done: bool, next_question_id: ?string}  $reply
+     * @return array{reply: string, done: bool, next_question_id: ?string}
+     */
+    private function normaliseChatReply(ScreeningResponse $response, JobScreening $screening, array $reply): array
+    {
+        $questions = $screening->questions ?? [];
+        $askedIds  = $this->askedQuestionIds($response->transcript ?? []);
+
+        if ($reply['done']) {
+            if ($this->hasPendingRequiredQuestions($questions, $askedIds)) {
+                $reply['done'] = false;
+            } else {
+                return $reply;
+            }
+        }
+
+        if ($this->replyContainsQuestion($reply['reply'])) {
+            if (empty($reply['next_question_id'])) {
+                $next = $this->nextUnaskedQuestion($questions, $askedIds);
+                if ($next) {
+                    $reply['next_question_id'] = (string) ($next['id'] ?? '');
+                }
+            }
+
+            return $reply;
+        }
+
+        $next = $this->nextUnaskedQuestion($questions, $askedIds);
+        if ($next) {
+            $reply['reply']            = $this->appendQuestionToReply($reply['reply'], (string) $next['text']);
+            $reply['next_question_id'] = (string) ($next['id'] ?? '');
+            $reply['done']             = false;
+
+            return $reply;
+        }
+
+        $reply['done'] = true;
+        if (!$this->replyContainsQuestion($reply['reply'])) {
+            $reply['reply'] = trim($reply['reply']) !== ''
+                ? rtrim($reply['reply'], " \t\n\r\0\x0B.!") . '. Thanks — that covers everything I needed for this screening.'
+                : "Thanks — that's all I needed for this screening.";
+        }
+
+        return $reply;
+    }
+
+    /** @param  array<int, array<string, mixed>>  $questions */
+    private function hasPendingRequiredQuestions(array $questions, array $askedIds): bool
+    {
+        foreach ($questions as $q) {
+            if (!($q['required'] ?? true)) {
+                continue;
+            }
+            $id = (string) ($q['id'] ?? '');
+            if ($id === '' || !in_array($id, $askedIds, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param  array<int, array<string, mixed>>  $transcript */
+    private function askedQuestionIds(array $transcript): array
+    {
+        $ids = [];
+        foreach ($transcript as $turn) {
+            if (($turn['role'] ?? null) === 'ai' && !empty($turn['qid'])) {
+                $ids[] = (string) $turn['qid'];
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /** @param  array<int, array<string, mixed>>  $questions */
+    private function nextUnaskedQuestion(array $questions, array $askedIds): ?array
+    {
+        foreach ($questions as $q) {
+            $id = (string) ($q['id'] ?? '');
+            if ($id === '' || in_array($id, $askedIds, true)) {
+                continue;
+            }
+
+            return $q;
+        }
+
+        return null;
+    }
+
+    private function replyContainsQuestion(string $reply): bool
+    {
+        return str_contains($reply, '?');
+    }
+
+    private function appendQuestionToReply(string $reply, string $questionText): string
+    {
+        $reply = trim($reply);
+        $questionText = trim($questionText);
+        if ($questionText === '') {
+            return $reply;
+        }
+
+        if ($reply === '') {
+            return $questionText;
+        }
+
+        if (str_ends_with($reply, '?')) {
+            return $reply;
+        }
+
+        return rtrim($reply, " \t\n\r\0\x0B.!") . '. ' . $questionText;
+    }
 
     private function normaliseQuestion($q): array
     {
@@ -359,8 +481,11 @@ PROMPT;
                 'next_question_id' => null,
             ];
         }
+
+        $questionText = (string) ($next['text'] ?? '');
+
         return [
-            'reply' => "Thanks. {$next['text']}",
+            'reply' => $this->appendQuestionToReply('Thanks for sharing.', $questionText),
             'done'  => false,
             'next_question_id' => $next['id'] ?? null,
         ];
