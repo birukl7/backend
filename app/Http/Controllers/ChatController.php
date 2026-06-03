@@ -24,8 +24,8 @@ class ChatController extends Controller
         $isEmployer = $user->hasRole('employer');
 
         $conversations = Conversation::with([
-            'employer:id,name,company_name',
-            'jobSeeker:id,name',
+            'employer:id,name,company_name,profile_photo',
+            'jobSeeker:id,name,profile_photo',
             'vacancy:id,title',
             'latestMessage',
         ])
@@ -44,8 +44,8 @@ class ChatController extends Controller
                     'id'             => $c->id,
                     'vacancy'        => $c->vacancy ? ['id' => $c->vacancy->id, 'title' => $c->vacancy->title] : null,
                     'other_user'     => $user->hasRole('employer')
-                        ? ['id' => $c->jobSeeker->id, 'name' => $c->jobSeeker->name]
-                        : ['id' => $c->employer->id, 'name' => $c->employer->name, 'company' => $c->employer->company_name],
+                        ? ['id' => $c->jobSeeker->id, 'name' => $c->jobSeeker->name, 'avatar' => $c->jobSeeker->avatar]
+                        : ['id' => $c->employer->id, 'name' => $c->employer->name, 'company' => $c->employer->company_name, 'avatar' => $c->employer->avatar],
                     'latest_message' => $c->latestMessage ? [
                         'body'       => $c->latestMessage->body,
                         'created_at' => $c->latestMessage->created_at?->toISOString(),
@@ -63,8 +63,8 @@ class ChatController extends Controller
 
         if ($activeConversationId) {
             $conv = Conversation::with([
-                'employer:id,name,company_name',
-                'jobSeeker:id,name',
+                'employer:id,name,company_name,profile_photo',
+                'jobSeeker:id,name,profile_photo',
                 'vacancy:id,title',
             ])->find($activeConversationId);
 
@@ -76,7 +76,7 @@ class ChatController extends Controller
                     ->update(['read_at' => now()]);
 
                 $activeMessages = Message::where('conversation_id', $conv->id)
-                    ->with('sender:id,name')
+                    ->with('sender:id,name,profile_photo')
                     ->orderBy('created_at')
                     ->get()
                     ->map(fn(Message $m) => [
@@ -84,7 +84,7 @@ class ChatController extends Controller
                         'body'       => $m->body,
                         'sender_id'  => $m->sender_id,
                         'is_mine'    => $m->sender_id === $user->id,
-                        'sender'     => ['name' => $m->sender->name],
+                        'sender'     => ['name' => $m->sender->name, 'avatar' => $m->sender->avatar],
                         'read_at'    => $m->read_at?->toISOString(),
                         'created_at' => $m->created_at->toISOString(),
                     ]);
@@ -93,8 +93,8 @@ class ChatController extends Controller
                     'id'         => $conv->id,
                     'vacancy'    => $conv->vacancy ? ['id' => $conv->vacancy->id, 'title' => $conv->vacancy->title] : null,
                     'other_user' => $user->hasRole('employer')
-                        ? ['id' => $conv->jobSeeker->id, 'name' => $conv->jobSeeker->name]
-                        : ['id' => $conv->employer->id, 'name' => $conv->employer->name, 'company' => $conv->employer->company_name],
+                        ? ['id' => $conv->jobSeeker->id, 'name' => $conv->jobSeeker->name, 'avatar' => $conv->jobSeeker->avatar]
+                        : ['id' => $conv->employer->id, 'name' => $conv->employer->name, 'company' => $conv->employer->company_name, 'avatar' => $conv->employer->avatar],
                     'status'     => $conv->status,
                 ];
             }
@@ -209,7 +209,7 @@ class ChatController extends Controller
             'body'       => $message->body,
             'sender_id'  => $message->sender_id,
             'is_mine'    => true,
-            'sender'     => ['name' => $user->name],
+            'sender'     => ['name' => $user->name, 'avatar' => $user->avatar],
             'read_at'    => null,
             'created_at' => $message->created_at->toISOString(),
         ]);
@@ -232,7 +232,7 @@ class ChatController extends Controller
 
         $messages = Message::where('conversation_id', $conversation->id)
             ->where('id', '>', $afterId)
-            ->with('sender:id,name')
+            ->with('sender:id,name,profile_photo')
             ->orderBy('id')
             ->get();
 
@@ -252,7 +252,7 @@ class ChatController extends Controller
                 'body'       => $m->body,
                 'sender_id'  => $m->sender_id,
                 'is_mine'    => $m->sender_id === $user->id,
-                'sender'     => ['name' => $m->sender->name],
+                'sender'     => ['name' => $m->sender->name, 'avatar' => $m->sender->avatar],
                 'read_at'    => $m->read_at?->toISOString(),
                 'created_at' => $m->created_at->toISOString(),
             ])->values()

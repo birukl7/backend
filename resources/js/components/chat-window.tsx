@@ -1,6 +1,8 @@
 import { router } from '@inertiajs/react';
 import { Send, Wifi } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useInitials } from '@/hooks/use-initials';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -9,7 +11,7 @@ export interface ChatMessage {
     body: string;
     sender_id: number;
     is_mine: boolean;
-    sender: { name: string };
+    sender: { name: string; avatar?: string | null };
     read_at: string | null;
     created_at: string;
 }
@@ -17,7 +19,7 @@ export interface ChatMessage {
 export interface Conversation {
     id: number;
     vacancy: { id: number; title: string } | null;
-    other_user: { id: number; name: string; company?: string };
+    other_user: { id: number; name: string; company?: string; avatar?: string | null };
     latest_message: {
         body: string;
         created_at: string;
@@ -59,6 +61,27 @@ function groupByDay(messages: ChatMessage[]) {
     return groups;
 }
 
+function ChatAvatar({
+    name,
+    avatar,
+    className,
+}: {
+    name: string;
+    avatar?: string | null;
+    className?: string;
+}) {
+    const getInitials = useInitials();
+
+    return (
+        <Avatar className={className}>
+            <AvatarImage src={avatar ?? undefined} alt={name} />
+            <AvatarFallback className="bg-gradient-to-br from-blue-400 to-violet-500 text-sm font-semibold text-white">
+                {getInitials(name)}
+            </AvatarFallback>
+        </Avatar>
+    );
+}
+
 // ─── Conversation List Item ───────────────────────────────────────────────────
 
 function ConvItem({
@@ -85,9 +108,11 @@ function ConvItem({
             }`}
         >
             {/* Avatar */}
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-violet-500 text-sm font-semibold text-white">
-                {conv.other_user.name.charAt(0).toUpperCase()}
-            </div>
+            <ChatAvatar
+                name={conv.other_user.name}
+                avatar={conv.other_user.avatar}
+                className="h-10 w-10 shrink-0"
+            />
 
             <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-1">
@@ -133,9 +158,11 @@ function Bubble({ msg }: { msg: ChatMessage }) {
     return (
         <div className={`flex ${msg.is_mine ? 'justify-end' : 'justify-start'}`}>
             {!msg.is_mine && (
-                <div className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-300 to-slate-400 text-xs font-semibold text-white">
-                    {msg.sender.name.charAt(0).toUpperCase()}
-                </div>
+                <ChatAvatar
+                    name={msg.sender.name}
+                    avatar={msg.sender.avatar}
+                    className="mr-2 mt-1 h-7 w-7 shrink-0"
+                />
             )}
             <div
                 className={`group relative max-w-[70%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
@@ -424,9 +451,11 @@ export function ChatWindow({
                     <>
                         {/* Header */}
                         <div className="flex h-14 items-center gap-3 border-b border-slate-200 px-5 dark:border-slate-700">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-violet-500 text-sm font-bold text-white">
-                                {activeConv.other_user.name.charAt(0).toUpperCase()}
-                            </div>
+                            <ChatAvatar
+                                name={activeConv.other_user.name}
+                                avatar={activeConv.other_user.avatar}
+                                className="h-9 w-9"
+                            />
                             <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                                     {activeConv.other_user.name}
