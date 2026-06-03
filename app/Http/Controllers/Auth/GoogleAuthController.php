@@ -83,6 +83,12 @@ class GoogleAuthController extends Controller
             $user->save();
         }
 
+        if ($user->isAccountRestricted()) {
+            $request->session()->put('restricted_account_status', $user->account_status);
+
+            return redirect()->route('account.restricted');
+        }
+
         if (! $user->hasVerifiedEmail()) {
             $user->markEmailAsVerified();
         }

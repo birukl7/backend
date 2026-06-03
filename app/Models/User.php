@@ -130,6 +130,14 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Whether the account is suspended or blocked and should not access the app.
+     */
+    public function isAccountRestricted(): bool
+    {
+        return in_array($this->account_status, ['suspended', 'blocked'], true);
+    }
+
+    /**
      * Whether the user has connected their Google Calendar.
      */
     protected function googleCalendarConnected(): Attribute

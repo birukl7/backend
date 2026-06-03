@@ -1,5 +1,8 @@
 import type { AppRole } from '@/config/navigation';
 
+/** Public job board (jobs.index). Used by landing "Get started". */
+export const JOBS_INDEX_PATH = '/jobs';
+
 export type WelcomeContent = {
     roleLabel: string;
     greeting: string;

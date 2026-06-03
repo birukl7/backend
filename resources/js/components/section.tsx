@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import { useTranslation } from "react-i18next"
 import { router, usePage } from "@inertiajs/react"
+import { JOBS_INDEX_PATH } from '@/lib/welcome'
 import { Badge } from "./ui/badge"
 
 interface SectionProps {
@@ -84,7 +85,11 @@ export default function Section({ id, isActive, showButton, canRegister }: Secti
                     {canRegister && !auth?.user && (
                         <button
                             type="button"
-                            onClick={() => goToGuestPage('/register')}
+                            onClick={() =>
+                                id === 'join'
+                                    ? goToGuestPage('/register')
+                                    : router.visit(JOBS_INDEX_PATH)
+                            }
                             className="inline-flex min-h-11 items-center rounded-lg bg-white px-6 py-2.5 text-sm font-medium text-black hover:bg-gray-200"
                         >
                             {id === 'join' ? t('landing.hero.joinNow') : t('landing.hero.getStarted')}

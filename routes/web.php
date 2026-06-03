@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\Auth\AccountRestrictedController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CvController;
@@ -23,6 +24,9 @@ use Laravel\Fortify\Features;
 Route::inertia('/', 'welcome', [
     'canRegister' => Features::enabled(Features::registration()),
 ])->name('home');
+
+Route::get('/account/restricted', AccountRestrictedController::class)
+    ->name('account.restricted');
 
 // ── Public ───────────────────────────────────────────────────────────────────
 // The job board and hiring statistics are open to everyone. Guests can browse
