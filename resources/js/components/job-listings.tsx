@@ -1849,21 +1849,23 @@ function GuestSidebar() {
 
 function GuestHero({ count }: { count: number }) {
     return (
-        <div className="relative overflow-hidden rounded-2xl border border-blue-200/80 bg-gradient-to-br from-blue-50 via-white to-emerald-50 px-5 py-6 sm:px-6">
-            <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-blue-700 uppercase">
-                Job board
-            </span>
-            <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-                Find your next opportunity
-            </h1>
-            <p className="mt-1 text-sm font-medium text-blue-700/90">
-                Browse open roles from employers actively hiring.
+        <header className="flex flex-col gap-1 border-b border-slate-200/80 pb-4 sm:flex-row sm:items-baseline sm:justify-between">
+            <div>
+                <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">
+                    Job board
+                </p>
+                <h1 className="mt-0.5 text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
+                    Find your next role
+                </h1>
+            </div>
+            <p className="text-sm text-slate-500">
+                {count} {count === 1 ? 'position' : 'positions'} ·{' '}
+                <a href="/login" className="text-blue-600 hover:underline">
+                    Sign in
+                </a>{' '}
+                to apply
             </p>
-            <p className="mt-2 text-sm text-slate-500">
-                {count} {count === 1 ? 'position' : 'positions'} available · log
-                in to apply.
-            </p>
-        </div>
+        </header>
     );
 }
 

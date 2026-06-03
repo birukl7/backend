@@ -24,7 +24,7 @@ export default function Dashboard() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
             <PageContainer>
-                <DashboardWelcome className="mb-8" />
+                <DashboardWelcome className="mb-6" />
 
                 <h2 className="mb-4 text-lg font-semibold text-foreground">
                     Quick links

@@ -4,10 +4,8 @@ import type { AppRole } from '@/config/navigation';
 export const JOBS_INDEX_PATH = '/jobs';
 
 export type WelcomeContent = {
-    roleLabel: string;
     greeting: string;
-    headline: string;
-    description: string;
+    tagline: string;
 };
 
 export function getFirstName(fullName: string): string {
@@ -20,27 +18,31 @@ export function getFirstName(fullName: string): string {
     return trimmed.split(/\s+/)[0] ?? 'there';
 }
 
+export function getTimeGreeting(): string {
+    const hour = new Date().getHours();
+
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+
+    return 'Good evening';
+}
+
 export function getWelcomeContent(
     role: AppRole,
     fullName: string,
 ): WelcomeContent {
     const firstName = getFirstName(fullName);
+    const greeting = `${getTimeGreeting()}, ${firstName}`;
 
     if (role === 'employer') {
         return {
-            roleLabel: 'Employer',
-            greeting: `Welcome, ${firstName}!`,
-            headline: 'Your hiring dashboard',
-            description:
-                'Manage job postings, review applications, and schedule interviews — all in one place.',
+            greeting,
+            tagline: 'Hiring overview',
         };
     }
 
     return {
-        roleLabel: 'Job Seeker',
-        greeting: `Welcome, ${firstName}!`,
-        headline: 'Your career hub',
-        description:
-            'Browse AI-matched opportunities, build your CV, and track applications and interviews.',
+        greeting,
+        tagline: 'Career hub',
     };
 }
