@@ -46,7 +46,7 @@ export const employerNavItems: NavItem[] = [
     {
         title: 'nav.messages',
         href: '/chat',
-       
+        icon: MessageSquare,
     },
 ];
 
@@ -89,7 +89,6 @@ export const jobSeekerNavItems: NavItem[] = [
     {
         title: 'nav.messages',
         href: '/chat',
-        icon: MessageSquare,
     },
 ];
 

@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Folder, LayoutGrid, Menu, MessageSquare, Search } from 'lucide-react';
+import { Folder, LayoutGrid, Menu, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
@@ -53,7 +53,7 @@ const navConfig: Record<Role, NavItem[]> = {
         { title: 'nav.myCVs', href: '/cv' },
         { title: 'nav.myApplications', href: '/my-applications' },
         { title: 'nav.myInterviews', href: '/my-interviews' },
-        { title: 'nav.messages', href: '/chat', icon: MessageSquare },
+        { title: 'nav.messages', href: '/chat' },
     ],
 };
 
