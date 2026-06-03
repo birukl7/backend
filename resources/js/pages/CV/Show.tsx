@@ -789,37 +789,41 @@ function CreativeTemplate({ cv, photoSrc, onField, editing, setEditing, adding, 
                 className="w-[210px] shrink-0 flex flex-col px-5 py-8 gap-5"
                 style={{ backgroundColor: accent }}
             >
-                {/* Photo */}
+                {/* Photo — img stays visible for PDF capture; upload UI is no-print only */}
                 <div className="flex flex-col items-center gap-3">
                     <div
-                        className="no-print w-24 h-24 rounded-full border-4 border-white/40 overflow-hidden cursor-pointer relative group"
-                        onClick={() => fileRef.current?.click()}
-                        title="Click to upload photo"
+                        className="w-24 h-24 rounded-full border-4 overflow-hidden relative"
+                        style={{ borderColor: "rgba(255,255,255,0.4)" }}
                     >
                         {photoSrc ? (
                             <img src={photoSrc} alt="Profile" className="w-full h-full object-cover" />
                         ) : (
-                            <div className="w-full h-full bg-white/20 flex flex-col items-center justify-center gap-1">
-                                <svg className="w-8 h-8 text-white/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <div
+                                className="no-print w-full h-full flex flex-col items-center justify-center gap-1 cursor-pointer"
+                                style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+                                onClick={() => fileRef.current?.click()}
+                                title="Click to upload photo"
+                            >
+                                <svg className="w-8 h-8" style={{ color: "rgba(255,255,255,0.6)" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                                     <circle cx="12" cy="8" r="3.5" /><path strokeLinecap="round" d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
                                 </svg>
-                                <span className="text-[9px] text-white/60">Upload photo</span>
+                                <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.6)" }}>Upload photo</span>
                             </div>
                         )}
-                        {/* Hover overlay */}
-                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-full">
-                            <svg className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" />
-                                <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
-                            </svg>
-                        </div>
+                        {photoSrc && (
+                            <div
+                                className="no-print absolute inset-0 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-full cursor-pointer"
+                                style={{ backgroundColor: "rgba(0,0,0,0.3)" }}
+                                onClick={() => fileRef.current?.click()}
+                                title="Click to change photo"
+                            >
+                                <svg className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" />
+                                    <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+                                </svg>
+                            </div>
+                        )}
                     </div>
-                    {/* Always-visible img for PDF (no-print hides the interactive one above) */}
-                    {photoSrc && (
-                        <div className="hidden print:flex w-24 h-24 rounded-full border-4 border-white/40 overflow-hidden">
-                            <img src={photoSrc} alt="Profile" className="w-full h-full object-cover" />
-                        </div>
-                    )}
                     <input ref={fileRef} type="file" accept="image/*" className="hidden"
                         onChange={(e) => e.target.files?.[0] && onPhotoUpload(e.target.files[0])} />
                 </div>
@@ -976,7 +980,7 @@ export default function Show({ cv }: { cv: Cv }) {
         // ── Modern color → rgb converter (browser canvas as resolver) ──────
         const tmpCanvas = document.createElement("canvas");
         tmpCanvas.width = tmpCanvas.height = 1;
-        const tmpCtx = tmpCanvas.getContext("2d")!;
+        const tmpCtx = tmpCanvas.getContext("2d", { willReadFrequently: true })!;
         function toRgb(colorStr: string): string {
             try {
                 tmpCtx.clearRect(0, 0, 1, 1);
@@ -988,12 +992,47 @@ export default function Show({ cv }: { cv: Cv }) {
                 return "#000";
             }
         }
-        // Matches oklch(), oklab(), color(), lab(), lch(), etc.
-        const MODERN_COLOR_RE = /(?:oklch|oklab|color|lab|lch|display-p3)\([^)]+\)/g;
-        const fixModernColors = (css: string) =>
-            css.replace(MODERN_COLOR_RE, (m) => toRgb(m));
+        const HAS_MODERN_COLOR = (s: string) =>
+            /oklch|oklab|color-mix|color\(|lab\(|lch\(|display-p3|\bin\s+(?:oklab|oklch)/i.test(s);
 
-        // ── Pre-fetch same-origin stylesheets and fix all modern color fns ──
+        function replaceParenCalls(css: string, fnName: string): string {
+            const re = new RegExp(`${fnName}\\(`, "gi");
+            let result = css;
+            for (let safety = 0; safety < 500; safety++) {
+                const match = re.exec(result);
+                if (!match) break;
+                const start = match.index;
+                let depth = 0;
+                let end = start;
+                for (let i = start; i < result.length; i++) {
+                    if (result[i] === "(") depth++;
+                    else if (result[i] === ")") {
+                        depth--;
+                        if (depth === 0) {
+                            end = i + 1;
+                            break;
+                        }
+                    }
+                }
+                const full = result.slice(start, end);
+                result = result.slice(0, start) + toRgb(full) + result.slice(end);
+                re.lastIndex = 0;
+            }
+            return result;
+        }
+
+        const fixModernColors = (css: string) => {
+            let result = css;
+            for (const fn of ["color-mix", "oklch", "oklab", "color", "lab", "lch", "display-p3"]) {
+                result = replaceParenCalls(result, fn);
+            }
+            return result.replace(
+                /\s+in\s+(?:oklab|oklch|srgb-linear|display-p3|hsl|hwb)/gi,
+                "",
+            );
+        };
+
+        // ── Pre-fetch stylesheets and fix all modern color fns ──────────────
         const cssCache = new Map<string, string>();
         for (const link of Array.from(
             document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
@@ -1001,10 +1040,35 @@ export default function Show({ cv }: { cv: Cv }) {
             try {
                 const res = await fetch(link.href, { credentials: "same-origin" });
                 const text = await res.text();
-                cssCache.set(link.href, MODERN_COLOR_RE.test(text) ? fixModernColors(text) : text);
-                MODERN_COLOR_RE.lastIndex = 0; // reset stateful regex
+                cssCache.set(link.href, HAS_MODERN_COLOR(text) ? fixModernColors(text) : text);
             } catch { /* cross-origin / network error — leave as-is */ }
         }
+
+        // ── Inline images as data URLs so html2canvas can embed them ─────────
+        const imageDataUrls = new Map<string, string>();
+        for (const img of Array.from(cvRef.current.querySelectorAll<HTMLImageElement>("img"))) {
+            if (!img.src || img.src.startsWith("data:")) continue;
+            try {
+                const res = await fetch(img.src, { credentials: "same-origin" });
+                if (!res.ok) continue;
+                const blob = await res.blob();
+                imageDataUrls.set(
+                    img.src,
+                    await new Promise<string>((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result as string);
+                        reader.readAsDataURL(blob);
+                    }),
+                );
+            } catch { /* broken / cross-origin image — leave as-is */ }
+        }
+
+        const COLOR_PROPS = [
+            "color", "backgroundColor",
+            "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor",
+            "outlineColor", "textDecorationColor", "columnRuleColor",
+            "fill", "stroke",
+        ] as const;
 
         // ── Hide edit-only controls ───────────────────────────────────────────
         const noprints = cvRef.current.querySelectorAll<HTMLElement>(".no-print");
@@ -1018,12 +1082,9 @@ export default function Show({ cv }: { cv: Cv }) {
                 logging: false,
                 backgroundColor: "#ffffff",
                 onclone: (clonedDoc) => {
-                    const needsFix = (s: string) =>
-                        /oklch|oklab|color\(|lab\(|lch\(/.test(s);
-
-                    // 1) Fix raw text in <style> blocks
+                    // 1) Fix raw text in <style> blocks (Vite injects CSS this way in dev)
                     clonedDoc.querySelectorAll("style").forEach((s) => {
-                        if (s.textContent && needsFix(s.textContent)) {
+                        if (s.textContent && HAS_MODERN_COLOR(s.textContent)) {
                             s.textContent = fixModernColors(s.textContent);
                         }
                     });
@@ -1040,39 +1101,27 @@ export default function Show({ cv }: { cv: Cv }) {
                             }
                         });
 
-                    // 3) Walk every element — fix inline style attrs AND
-                    //    computed properties that the browser may have resolved
-                    //    to a modern color function (e.g. oklab for gradients).
+                    // 3) Inline resolved rgb colours so html2canvas never parses oklab rules
                     const view = clonedDoc.defaultView ?? window;
                     function patchEl(el: HTMLElement) {
-                        // Fix inline style= attribute
                         const attr = el.getAttribute("style") ?? "";
-                        if (needsFix(attr)) {
+                        if (HAS_MODERN_COLOR(attr)) {
                             el.setAttribute("style", fixModernColors(attr));
                         }
 
-                        // Fix key computed properties the browser might have
-                        // resolved to oklab/oklch (common with gradients &
-                        // CSS-variable-backed colours).
                         try {
                             const c = view.getComputedStyle(el);
-                            const bgColor = c.backgroundColor;
-                            if (bgColor && needsFix(bgColor)) {
-                                el.style.backgroundColor = toRgb(bgColor);
-                            }
-                            const color = c.color;
-                            if (color && needsFix(color)) {
-                                el.style.color = toRgb(color);
+                            for (const prop of COLOR_PROPS) {
+                                const val = c[prop];
+                                if (val && val !== "transparent" && val !== "rgba(0, 0, 0, 0)") {
+                                    el.style[prop] = val;
+                                }
                             }
                             const bgImg = c.backgroundImage;
-                            if (bgImg && needsFix(bgImg)) {
-                                // Chrome may serialize gradients as
-                                // `linear-gradient(... in oklab, ...)`.
-                                // html2canvas cannot parse that color-space
-                                // interpolation syntax, so drop the gradient
-                                // and keep a solid resolved background.
+                            if (bgImg && bgImg !== "none" && HAS_MODERN_COLOR(bgImg)) {
                                 el.style.backgroundImage = "none";
-                                if (!bgColor || bgColor === "rgba(0, 0, 0, 0)") {
+                                const bgColor = c.backgroundColor;
+                                if (!bgColor || bgColor === "rgba(0, 0, 0, 0)" || bgColor === "transparent") {
                                     el.style.backgroundColor = "#ffffff";
                                 }
                             }
@@ -1083,6 +1132,12 @@ export default function Show({ cv }: { cv: Cv }) {
                         }
                     }
                     patchEl(clonedDoc.documentElement);
+
+                    // 4) Embed fetched images as data URLs
+                    clonedDoc.querySelectorAll<HTMLImageElement>("img").forEach((img) => {
+                        const dataUrl = imageDataUrls.get(img.src);
+                        if (dataUrl) img.src = dataUrl;
+                    });
                 },
             });
         } finally {
