@@ -6,9 +6,11 @@ use App\Models\AppNotification;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
-use App\Models\Vacancy;
+use App\Support\PhpIniSize;
+use App\Support\PublicUploads;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ChatController extends Controller
@@ -29,8 +31,8 @@ class ChatController extends Controller
             'vacancy:id,title',
             'latestMessage',
         ])
-            ->when($isEmployer, fn($q) => $q->where('employer_id', $user->id))
-            ->when(!$isEmployer, fn($q) => $q->where('job_seeker_id', $user->id))
+            ->when($isEmployer, fn ($q) => $q->where('employer_id', $user->id))
+            ->when(! $isEmployer, fn ($q) => $q->where('job_seeker_id', $user->id))
             ->orderByDesc(function ($query) {
                 $query->select('created_at')
                     ->from('messages')
@@ -47,7 +49,7 @@ class ChatController extends Controller
                         ? ['id' => $c->jobSeeker->id, 'name' => $c->jobSeeker->name, 'avatar' => $c->jobSeeker->avatar]
                         : ['id' => $c->employer->id, 'name' => $c->employer->name, 'company' => $c->employer->company_name, 'avatar' => $c->employer->avatar],
                     'latest_message' => $c->latestMessage ? [
-                        'body'       => $c->latestMessage->body,
+                        'body'       => $c->latestMessage->previewText(),
                         'created_at' => $c->latestMessage->created_at?->toISOString(),
                         'is_mine'    => $c->latestMessage->sender_id === $user->id,
                     ] : null,
@@ -79,15 +81,7 @@ class ChatController extends Controller
                     ->with('sender:id,name,profile_photo')
                     ->orderBy('created_at')
                     ->get()
-                    ->map(fn(Message $m) => [
-                        'id'         => $m->id,
-                        'body'       => $m->body,
-                        'sender_id'  => $m->sender_id,
-                        'is_mine'    => $m->sender_id === $user->id,
-                        'sender'     => ['name' => $m->sender->name, 'avatar' => $m->sender->avatar],
-                        'read_at'    => $m->read_at?->toISOString(),
-                        'created_at' => $m->created_at->toISOString(),
-                    ]);
+                    ->map(fn (Message $m) => $m->toChatArray($user->id));
 
                 $activeConversation = [
                     'id'         => $conv->id,
@@ -148,7 +142,7 @@ class ChatController extends Controller
         AppNotification::create([
             'user_id' => $data['job_seeker_id'],
             'type'    => 'new_message',
-            'title'   => 'New message from ' . ($user->company_name ?: $user->name),
+            'title'   => 'New message from '.($user->company_name ?: $user->name),
             'body'    => mb_strimwidth($data['message'], 0, 100, '…'),
             'data'    => [
                 'conversation_id' => $conversation->id,
@@ -175,15 +169,55 @@ class ChatController extends Controller
             403
         );
 
+        if (! $request->hasFile('attachment') && $request->isMethod('post')) {
+            $maxLabel = PhpIniSize::uploadMaxLabel();
+            $contentLength = (int) $request->server('CONTENT_LENGTH', 0);
+            $postMax = PhpIniSize::toBytes((string) ini_get('post_max_size'));
+
+            if ($contentLength > 0 && $postMax > 0 && $contentLength > $postMax) {
+                throw ValidationException::withMessages([
+                    'attachment' => "The file is too large for the server to accept (limit: {$maxLabel}).",
+                ]);
+            }
+        }
+
+        $maxKb = min(PhpIniSize::uploadMaxKilobytes(), 10240);
+
         $data = $request->validate([
-            'body' => ['required', 'string', 'max:2000'],
+            'body'       => ['nullable', 'string', 'max:2000'],
+            'attachment' => ['nullable', 'file', 'max:'.$maxKb, 'mimes:jpeg,jpg,png,gif,webp,pdf'],
         ]);
 
+        $body = trim($data['body'] ?? '');
+        $hasFile = $request->hasFile('attachment');
+
+        if ($body === '' && ! $hasFile) {
+            throw ValidationException::withMessages([
+                'body' => 'Type a message or attach a file.',
+            ]);
+        }
+
+        $attachmentPath = null;
+        $attachmentType = null;
+        $attachmentName = null;
+
+        if ($hasFile) {
+            $file = $request->file('attachment');
+            $attachmentPath = PublicUploads::store($file, 'chat-attachments');
+            $attachmentType = $file->getMimeType() === 'application/pdf' ? 'pdf' : 'image';
+            $attachmentName = $file->getClientOriginalName();
+        }
+
         $message = Message::create([
-            'conversation_id' => $conversation->id,
-            'sender_id'       => $user->id,
-            'body'            => $data['body'],
+            'conversation_id'           => $conversation->id,
+            'sender_id'                 => $user->id,
+            'body'                      => $body !== '' ? $body : null,
+            'attachment_path'           => $attachmentPath,
+            'attachment_type'           => $attachmentType,
+            'attachment_original_name'  => $attachmentName,
         ]);
+
+        $message->load('sender:id,name,profile_photo');
 
         $conversation->touch();
 
@@ -195,8 +229,8 @@ class ChatController extends Controller
         AppNotification::create([
             'user_id' => $recipientId,
             'type'    => 'new_message',
-            'title'   => 'New message from ' . $user->name,
-            'body'    => mb_strimwidth($data['body'], 0, 100, '…'),
+            'title'   => 'New message from '.$user->name,
+            'body'    => mb_strimwidth($message->previewText(), 0, 100, '…'),
             'data'    => [
                 'conversation_id' => $conversation->id,
                 'sender_id'       => $user->id,
@@ -204,15 +238,7 @@ class ChatController extends Controller
             ],
         ]);
 
-        return response()->json([
-            'id'         => $message->id,
-            'body'       => $message->body,
-            'sender_id'  => $message->sender_id,
-            'is_mine'    => true,
-            'sender'     => ['name' => $user->name, 'avatar' => $user->avatar],
-            'read_at'    => null,
-            'created_at' => $message->created_at->toISOString(),
-        ]);
+        return response()->json($message->toChatArray($user->id));
     }
 
     /**
@@ -247,15 +273,7 @@ class ChatController extends Controller
         }
 
         return response()->json(
-            $messages->map(fn(Message $m) => [
-                'id'         => $m->id,
-                'body'       => $m->body,
-                'sender_id'  => $m->sender_id,
-                'is_mine'    => $m->sender_id === $user->id,
-                'sender'     => ['name' => $m->sender->name, 'avatar' => $m->sender->avatar],
-                'read_at'    => $m->read_at?->toISOString(),
-                'created_at' => $m->created_at->toISOString(),
-            ])->values()
+            $messages->map(fn (Message $m) => $m->toChatArray($user->id))->values()
         );
     }
 

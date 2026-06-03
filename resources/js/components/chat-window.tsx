@@ -1,20 +1,31 @@
 import { router } from '@inertiajs/react';
-import { Send, Wifi } from 'lucide-react';
+import { FileText, Paperclip, Send, Wifi, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useInitials } from '@/hooks/use-initials';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface ChatAttachment {
+    url: string;
+    type: 'image' | 'pdf';
+    name: string;
+}
+
 export interface ChatMessage {
     id: number;
     body: string;
+    attachment: ChatAttachment | null;
     sender_id: number;
     is_mine: boolean;
     sender: { name: string; avatar?: string | null };
     read_at: string | null;
     created_at: string;
 }
+
+const CHAT_ATTACHMENT_ACCEPT =
+    'image/jpeg,image/png,image/gif,image/webp,application/pdf';
+const CHAT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
 
 export interface Conversation {
     id: number;
@@ -45,6 +56,21 @@ function formatDay(iso: string) {
     if (diff === 1) return 'Yesterday';
     if (diff < 7) return d.toLocaleDateString([], { weekday: 'long' });
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function attachmentTypeFromFile(file: File): 'image' | 'pdf' | null {
+    if (file.type === 'application/pdf') return 'pdf';
+    if (file.type.startsWith('image/')) return 'image';
+    return null;
+}
+
+function messagesMatch(optimistic: ChatMessage, confirmed: ChatMessage): boolean {
+    if (optimistic.body !== confirmed.body) return false;
+    const opt = optimistic.attachment;
+    const conf = confirmed.attachment;
+    if (!opt && !conf) return true;
+    if (!opt || !conf) return false;
+    return opt.type === conf.type && opt.name === conf.name;
 }
 
 function groupByDay(messages: ChatMessage[]) {
@@ -155,6 +181,8 @@ function ConvItem({
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 
 function Bubble({ msg }: { msg: ChatMessage }) {
+    const hasBody = msg.body.trim().length > 0;
+
     return (
         <div className={`flex ${msg.is_mine ? 'justify-end' : 'justify-start'}`}>
             {!msg.is_mine && (
@@ -176,7 +204,40 @@ function Bubble({ msg }: { msg: ChatMessage }) {
                         {msg.sender.name}
                     </p>
                 )}
-                <p className="whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+                {msg.attachment?.type === 'image' && (
+                    <a
+                        href={msg.attachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mb-2 block overflow-hidden rounded-lg"
+                    >
+                        <img
+                            src={msg.attachment.url}
+                            alt={msg.attachment.name}
+                            className="max-h-64 max-w-full object-contain"
+                        />
+                    </a>
+                )}
+                {msg.attachment?.type === 'pdf' && (
+                    <a
+                        href={msg.attachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`mb-2 flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors ${
+                            msg.is_mine
+                                ? 'border-blue-400/50 bg-blue-600/40 hover:bg-blue-600/60'
+                                : 'border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700'
+                        }`}
+                    >
+                        <FileText className="h-5 w-5 shrink-0" />
+                        <span className="truncate font-medium">
+                            {msg.attachment.name}
+                        </span>
+                    </a>
+                )}
+                {hasBody && (
+                    <p className="whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+                )}
                 <div
                     className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
                         msg.is_mine ? 'text-blue-200' : 'text-slate-400'
@@ -209,14 +270,20 @@ export function ChatWindow({
     currentUserId,
     emptyState,
 }: ChatWindowProps) {
-    const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+    const [messages, setMessages] = useState<ChatMessage[]>(
+        initialMessages.map((m) => ({ ...m, attachment: m.attachment ?? null })),
+    );
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
     const [activeConv, setActiveConv] = useState<Conversation | null>(initialActiveConv);
     const [convList, setConvList] = useState<Conversation[]>(conversations);
+    const [pendingFile, setPendingFile] = useState<File | null>(null);
+    const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+    const [attachError, setAttachError] = useState<string | null>(null);
 
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     // Always holds the highest real message id we have seen (never a temp id)
     const lastRealIdRef = useRef<number>(
         initialMessages.filter((m) => m.id < 1_000_000_000).reduce((max, m) => Math.max(max, m.id), 0),
@@ -226,6 +293,48 @@ export function ChatWindow({
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    useEffect(() => {
+        return () => {
+            if (pendingPreview?.startsWith('blob:')) {
+                URL.revokeObjectURL(pendingPreview);
+            }
+        };
+    }, [pendingPreview]);
+
+    const clearPendingAttachment = useCallback(() => {
+        if (pendingPreview?.startsWith('blob:')) {
+            URL.revokeObjectURL(pendingPreview);
+        }
+        setPendingFile(null);
+        setPendingPreview(null);
+        setAttachError(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    }, [pendingPreview]);
+
+    const selectAttachment = useCallback(
+        (file: File | null) => {
+            clearPendingAttachment();
+            if (!file) return;
+
+            const type = attachmentTypeFromFile(file);
+            if (!type) {
+                setAttachError('Only images (JPEG, PNG, GIF, WebP) and PDF files are allowed.');
+                return;
+            }
+            if (file.size > CHAT_ATTACHMENT_MAX_BYTES) {
+                setAttachError('File must be 10 MB or smaller.');
+                return;
+            }
+
+            setPendingFile(file);
+            setAttachError(null);
+            if (type === 'image') {
+                setPendingPreview(URL.createObjectURL(file));
+            }
+        },
+        [clearPendingAttachment],
+    );
 
     // Polling for new messages every 1.5 s
     useEffect(() => {
@@ -241,7 +350,10 @@ export function ChatWindow({
                     { headers: { Accept: 'application/json' } },
                 );
                 if (!res.ok || !active) return;
-                const incoming = (await res.json()) as ChatMessage[];
+                const incoming = ((await res.json()) as ChatMessage[]).map((m) => ({
+                    ...m,
+                    attachment: m.attachment ?? null,
+                }));
                 if (!incoming.length) return;
 
                 // Track highest real id
@@ -254,7 +366,10 @@ export function ChatWindow({
                         // If this is an optimistic bubble that the server now confirms, swap it
                         if (m.id > 1_000_000_000 && m.is_mine) {
                             const confirmed = incoming.find(
-                                (n) => n.is_mine && n.body === m.body && !prev.some((p) => p.id === n.id),
+                                (n) =>
+                                    n.is_mine &&
+                                    messagesMatch(m, n) &&
+                                    !prev.some((p) => p.id === n.id),
                             );
                             return confirmed ?? m;
                         }
@@ -306,6 +421,7 @@ export function ChatWindow({
     const selectConversation = useCallback((conv: Conversation) => {
         setActiveConv(conv);
         setMessages([]);
+        clearPendingAttachment();
         lastRealIdRef.current = 0;
         // Navigate to set URL param and load messages via Inertia
         router.get(
@@ -320,7 +436,10 @@ export function ChatWindow({
                         active_messages: ChatMessage[];
                         active_conversation: Conversation;
                     };
-                    const loaded = props.active_messages ?? [];
+                    const loaded = (props.active_messages ?? []).map((m) => ({
+                        ...m,
+                        attachment: m.attachment ?? null,
+                    }));
                     setMessages(loaded);
                     // Advance ref so polling starts from after the loaded messages
                     const maxId = loaded.reduce((max, m) => Math.max(max, m.id), 0);
@@ -336,20 +455,35 @@ export function ChatWindow({
                 },
             },
         );
-    }, []);
+    }, [clearPendingAttachment]);
 
     const sendMessage = useCallback(async () => {
-        if (!activeConv || !input.trim() || sending) return;
-
         const body = input.trim();
+        const file = pendingFile;
+        if (!activeConv || sending || (!body && !file)) return;
+
         setInput('');
+        const fileToSend = file;
+        const previewUrl = pendingPreview;
+        clearPendingAttachment();
         setSending(true);
+
+        const optimisticAttachment: ChatAttachment | null = fileToSend
+            ? {
+                  url:
+                      previewUrl ??
+                      (fileToSend.type === 'application/pdf' ? '#' : ''),
+                  type: attachmentTypeFromFile(fileToSend) ?? 'image',
+                  name: fileToSend.name,
+              }
+            : null;
 
         // Optimistic bubble — use a temp id well above any real DB id
         const tempId = Date.now();
         const optimistic: ChatMessage = {
             id: tempId,
             body,
+            attachment: optimisticAttachment,
             sender_id: currentUserId,
             is_mine: true,
             sender: { name: 'You' },
@@ -363,33 +497,57 @@ export function ChatWindow({
                 (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)
                     ?.content ?? '';
 
-            const res = await fetch(`/chat/${activeConv.id}/messages`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({ body }),
-            });
+            let res: Response;
+
+            if (fileToSend) {
+                const form = new FormData();
+                if (body) form.append('body', body);
+                form.append('attachment', fileToSend);
+
+                res = await fetch(`/chat/${activeConv.id}/messages`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        Accept: 'application/json',
+                    },
+                    body: form,
+                });
+            } else {
+                res = await fetch(`/chat/${activeConv.id}/messages`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        Accept: 'application/json',
+                    },
+                    body: JSON.stringify({ body }),
+                });
+            }
 
             if (res.ok) {
                 const real = (await res.json()) as ChatMessage;
                 // Swap optimistic bubble with the confirmed message
                 setMessages((prev) =>
-                    prev.map((m) => (m.id === tempId ? real : m)),
+                    prev.map((m) => (m.id === tempId ? { ...real, attachment: real.attachment ?? null } : m)),
                 );
                 // Advance the lastRealId so the next poll skips this message
                 if (real.id > lastRealIdRef.current) {
                     lastRealIdRef.current = real.id;
                 }
+                const previewBody =
+                    real.body.trim() ||
+                    (real.attachment?.type === 'image'
+                        ? '📷 Photo'
+                        : real.attachment?.type === 'pdf'
+                          ? '📄 PDF'
+                          : '');
                 setConvList((prev) =>
                     prev.map((c) =>
                         c.id === activeConv.id
                             ? {
                                   ...c,
                                   latest_message: {
-                                      body: real.body,
+                                      body: previewBody,
                                       created_at: real.created_at,
                                       is_mine: true,
                                   },
@@ -397,12 +555,23 @@ export function ChatWindow({
                             : c,
                     ),
                 );
+            } else {
+                setMessages((prev) => prev.filter((m) => m.id !== tempId));
+                setAttachError('Could not send your message. Please try again.');
             }
         } finally {
             setSending(false);
             inputRef.current?.focus();
         }
-    }, [activeConv, input, sending, currentUserId]);
+    }, [
+        activeConv,
+        input,
+        sending,
+        currentUserId,
+        pendingFile,
+        pendingPreview,
+        clearPendingAttachment,
+    ]);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -509,7 +678,62 @@ export function ChatWindow({
 
                         {/* Input */}
                         <div className="border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept={CHAT_ATTACHMENT_ACCEPT}
+                                className="hidden"
+                                onChange={(e) => {
+                                    selectAttachment(e.target.files?.[0] ?? null);
+                                    e.target.value = '';
+                                }}
+                            />
+                            {pendingFile && (
+                                <div className="mb-2 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-800">
+                                    {pendingPreview ? (
+                                        <img
+                                            src={pendingPreview}
+                                            alt="Attachment preview"
+                                            className="h-14 w-14 shrink-0 rounded object-cover"
+                                        />
+                                    ) : (
+                                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-red-50 text-red-500 dark:bg-red-900/20">
+                                            <FileText className="h-6 w-6" />
+                                        </div>
+                                    )}
+                                    <div className="min-w-0 flex-1 pt-0.5">
+                                        <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">
+                                            {pendingFile.name}
+                                        </p>
+                                        <p className="text-[10px] text-slate-400">
+                                            {pendingFile.type === 'application/pdf'
+                                                ? 'PDF'
+                                                : 'Image'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={clearPendingAttachment}
+                                        className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-700"
+                                        aria-label="Remove attachment"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            )}
+                            {attachError && (
+                                <p className="mb-2 text-xs text-red-500">{attachError}</p>
+                            )}
                             <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:focus-within:ring-blue-900/30">
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={sending}
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600 disabled:opacity-40 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                                    aria-label="Attach image or PDF"
+                                >
+                                    <Paperclip className="h-4 w-4" />
+                                </button>
                                 <textarea
                                     ref={inputRef}
                                     value={input}
@@ -522,14 +746,14 @@ export function ChatWindow({
                                 />
                                 <button
                                     onClick={sendMessage}
-                                    disabled={!input.trim() || sending}
+                                    disabled={(!input.trim() && !pendingFile) || sending}
                                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500 text-white transition-all hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                     <Send className="h-4 w-4" />
                                 </button>
                             </div>
                             <p className="mt-1.5 text-center text-[10px] text-slate-300 dark:text-slate-600">
-                                Enter to send · Shift+Enter for new line
+                                Enter to send · Shift+Enter for new line · Images & PDF up to 10 MB
                             </p>
                         </div>
                     </>
