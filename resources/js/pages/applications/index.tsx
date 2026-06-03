@@ -1,6 +1,8 @@
 import AppLayout from "@/layouts/app-layout";
-import { Head, router, usePage } from "@inertiajs/react";
+import { VacancyPreviewModal } from "@/components/vacancy-preview-modal";
 import HireReviewForm from "@/components/hire-review-form";
+import { Head, router, usePage } from "@inertiajs/react";
+import { useState } from "react";
 
 interface HireReview {
     id: number;
@@ -83,6 +85,7 @@ function StatsRow({ applications }: { applications: Application[] }) {
 export default function MyApplications({ applications }: Props) {
     const { auth } = usePage<{ auth: { user: { id: number } } }>().props;
     const userId = auth.user.id;
+    const [previewVacancyId, setPreviewVacancyId] = useState<number | null>(null);
 
     function withdraw(id: number) {
         if (confirm("Withdraw this application?")) {
@@ -125,7 +128,19 @@ export default function MyApplications({ applications }: Props) {
                             const theirReview = reviews.find((r) => r.reviewer_id !== userId);
 
                             return (
-                                <div key={app.id} className="bg-white border border-slate-200 hover:border-slate-300 rounded-2xl px-5 py-4 flex items-start gap-4 transition-colors group">
+                                <div
+                                    key={app.id}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => setPreviewVacancyId(app.vacancy.id)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                            e.preventDefault();
+                                            setPreviewVacancyId(app.vacancy.id);
+                                        }
+                                    }}
+                                    className="bg-white border border-slate-200 hover:border-slate-300 rounded-2xl px-5 py-4 flex items-start gap-4 transition-colors group cursor-pointer"
+                                >
                                     {/* Color strip */}
                                     <div className={`w-1 h-12 rounded-full shrink-0 mt-0.5 ${cfg.dot}`} />
 
@@ -133,9 +148,9 @@ export default function MyApplications({ applications }: Props) {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between gap-3">
                                             <div>
-                                                <a href={`/jobs`} className="font-semibold text-slate-900 text-[14px] hover:text-blue-600 transition-colors leading-snug">
+                                                <span className="font-semibold text-slate-900 text-[14px] group-hover:text-blue-600 transition-colors leading-snug">
                                                     {app.vacancy.title}
-                                                </a>
+                                                </span>
                                                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
                                                     {app.vacancy.location && (
                                                         <span className="text-[12px] text-slate-400 flex items-center gap-1">
@@ -171,7 +186,11 @@ export default function MyApplications({ applications }: Props) {
                                             <span className="text-[11px] text-slate-400">Applied {timeAgo(app.created_at)}</span>
                                             {canWithdraw && (
                                                 <button
-                                                    onClick={() => withdraw(app.id)}
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        withdraw(app.id);
+                                                    }}
                                                     className="text-[11px] text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all hover:underline"
                                                 >
                                                     Withdraw
@@ -180,7 +199,11 @@ export default function MyApplications({ applications }: Props) {
                                         </div>
 
                                         {app.status === "hired" && (
-                                            <div className="mt-3 space-y-2">
+                                            <div
+                                                className="mt-3 space-y-2"
+                                                onClick={(e) => e.stopPropagation()}
+                                                onKeyDown={(e) => e.stopPropagation()}
+                                            >
                                                 <HireReviewForm
                                                     applicationId={app.id}
                                                     existingReview={myReview}
@@ -209,6 +232,13 @@ export default function MyApplications({ applications }: Props) {
                     </div>
                 )}
             </div>
+
+            {previewVacancyId !== null && (
+                <VacancyPreviewModal
+                    vacancyId={previewVacancyId}
+                    onClose={() => setPreviewVacancyId(null)}
+                />
+            )}
         </AppLayout>
     );
 }
