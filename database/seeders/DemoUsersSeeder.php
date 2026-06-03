@@ -39,8 +39,8 @@ class DemoUsersSeeder extends Seeder
         $seeker->forceFill([
             'password'          => bcrypt(self::DEMO_PASSWORD),
             'email_verified_at' => $seeker->email_verified_at ?? now(),
-            'headline'          => 'UI/UX Designer & Frontend Developer',
-            'bio'               => 'Product-minded designer and frontend engineer based in Addis Ababa.',
+            'headline'          => 'Frontend Developer',
+            'bio'               => 'React and TypeScript engineer building responsive web applications in Addis Ababa.',
             'location'          => 'Addis Ababa, Ethiopia',
         ])->save();
 
@@ -48,8 +48,11 @@ class DemoUsersSeeder extends Seeder
             $seeker->assignRole('job_seeker');
         }
 
-        $this->seedCv($seeker, $this->uiUxCvDefinition(), isDefault: true);
-        $this->seedCv($seeker, $this->frontendCvDefinition(), isDefault: false);
+        $this->seedCv($seeker, $this->frontendCvDefinition(), isDefault: true);
+
+        Cv::where('user_id', $seeker->id)
+            ->where('title', '!=', 'Frontend Developer')
+            ->delete();
 
         return $seeker;
     }
@@ -146,76 +149,6 @@ class DemoUsersSeeder extends Seeder
                 'status'  => 'open',
             ]),
         );
-    }
-
-    private function uiUxCvDefinition(): array
-    {
-        return [
-            'title'   => 'UI/UX Design',
-            'summary' => 'UI/UX designer with 4+ years crafting accessible, research-driven interfaces for web and mobile products. Strong in design systems, prototyping, and handoff to engineering teams.',
-            'github'  => null,
-            'experiences' => [
-                [
-                    'job_title'    => 'Senior UI/UX Designer',
-                    'company_name' => 'ArifPay Labs',
-                    'location'     => 'Addis Ababa',
-                    'description'  => 'Led end-to-end design for a fintech dashboard used by 50k+ merchants. Ran usability tests, built a Figma design system, and improved task completion by 28%.',
-                    'start_date'   => '2022-03-01',
-                    'end_date'     => null,
-                    'is_current'   => true,
-                ],
-                [
-                    'job_title'    => 'Product Designer',
-                    'company_name' => 'Ride Ethiopia',
-                    'location'     => 'Addis Ababa',
-                    'description'  => 'Redesigned rider and driver apps, created wireframes and high-fidelity prototypes, and partnered with PMs on onboarding flows.',
-                    'start_date'   => '2020-01-01',
-                    'end_date'     => '2022-02-28',
-                    'is_current'   => false,
-                ],
-                [
-                    'job_title'    => 'Junior UX Designer',
-                    'company_name' => 'HubTech Ethiopia',
-                    'location'     => 'Addis Ababa',
-                    'description'  => 'Supported user interviews, affinity mapping, and UI polish for an ed-tech MVP.',
-                    'start_date'   => '2018-06-01',
-                    'end_date'     => '2019-12-31',
-                    'is_current'   => false,
-                ],
-            ],
-            'educations' => [
-                [
-                    'institution_name' => 'Addis Ababa University',
-                    'degree'           => 'Bachelor of Arts',
-                    'field_of_study'   => 'Visual Communication Design',
-                    'location'         => 'Addis Ababa',
-                    'description'      => 'Focus on human-centered design, typography, and digital media.',
-                    'start_date'       => '2014-09-01',
-                    'end_date'         => '2018-07-15',
-                    'is_current'       => false,
-                ],
-                [
-                    'institution_name' => 'Addis Ababa Science and Technology University',
-                    'degree'           => 'Professional Certificate',
-                    'field_of_study'   => 'Human-Computer Interaction',
-                    'location'         => 'Addis Ababa',
-                    'description'      => 'Evening program covering UX research methods and interaction design patterns.',
-                    'start_date'       => '2019-01-01',
-                    'end_date'         => '2019-12-20',
-                    'is_current'       => false,
-                ],
-            ],
-            'skills' => [
-                ['skill_name' => 'Figma', 'proficiency_level' => 'expert', 'category' => 'Design Tools'],
-                ['skill_name' => 'Adobe XD', 'proficiency_level' => 'advanced', 'category' => 'Design Tools'],
-                ['skill_name' => 'User Research', 'proficiency_level' => 'advanced', 'category' => 'UX'],
-                ['skill_name' => 'Wireframing', 'proficiency_level' => 'expert', 'category' => 'UX'],
-                ['skill_name' => 'Prototyping', 'proficiency_level' => 'expert', 'category' => 'UX'],
-                ['skill_name' => 'Design Systems', 'proficiency_level' => 'advanced', 'category' => 'UX'],
-                ['skill_name' => 'Accessibility (WCAG)', 'proficiency_level' => 'intermediate', 'category' => 'UX'],
-                ['skill_name' => 'HTML & CSS', 'proficiency_level' => 'intermediate', 'category' => 'Technical'],
-            ],
-        ];
     }
 
     private function frontendCvDefinition(): array
