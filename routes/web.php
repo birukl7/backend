@@ -96,7 +96,6 @@ Route::middleware(['auth', 'verified', 'role:job_seeker'])->group(function () {
 
     Route::get('/my-interviews', [InterviewController::class, 'jobSeekerIndex'])->name('interviews.index');
     Route::delete('/interviews/{interview}', [InterviewController::class, 'destroy'])->name('interviews.destroy');
-    Route::get('/interviews/{interview}/join', [InterviewController::class, 'join'])->name('interviews.join');
 
     Route::post('/screening/{vacancy}/start',
         [ScreeningController::class, 'start'])->name('screening.start');
@@ -140,8 +139,10 @@ Route::middleware(['auth', 'verified', 'role:job_seeker'])->group(function () {
     Route::post('/quiz/{assessment}/submit', [QuizController::class, 'submit'])->name('quiz.submit');
 });
 
-// ── Notifications (employer + job seeker) ─────────────────────────────────────
+// ── Shared (employer + job seeker) ────────────────────────────────────────────
 Route::middleware(['auth', 'verified', 'role:employer|job_seeker'])->group(function () {
+    Route::get('/interviews/{interview}/join', [InterviewController::class, 'join'])->name('interviews.join');
+
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('/api/notifications', [NotificationController::class, 'apiIndex'])->name('notifications.api');
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');

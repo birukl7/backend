@@ -207,11 +207,14 @@ class InterviewController extends Controller
      */
     public function join(Interview $interview)
     {
-        $user = auth()->id();
-        abort_if($interview->employer_id !== $user && $interview->job_seeker_id !== $user, 403);
- 
+        $userId = auth()->id();
+        abort_if($interview->employer_id !== $userId && $interview->job_seeker_id !== $userId, 403);
+
+        $viewerIsJobSeeker = $userId === $interview->job_seeker_id;
+        $interview->load(['employer:id,name,profile_photo', 'jobSeeker:id,name,profile_photo']);
+
         return Inertia::render('interviews/room', [
-            'interview'    => $this->formatInterview($interview),
+            'interview'    => $this->formatInterview($interview, forJobSeeker: $viewerIsJobSeeker),
             'display_name' => auth()->user()->name,
             'room_id'      => $interview->room_id,
         ]);
@@ -311,7 +314,9 @@ class InterviewController extends Controller
             'vacancy_location' => $vacancy?->location,
             'application_id'   => $i->application_id,
             'employer_name'    => $forJobSeeker ? ($i->employer?->name ?? 'Employer') : null,
+            'employer_avatar'  => $forJobSeeker ? ($i->employer?->avatar) : null,
             'candidate_name'   => !$forJobSeeker ? ($i->jobSeeker?->name ?? 'Candidate') : null,
+            'candidate_avatar' => !$forJobSeeker ? ($i->jobSeeker?->avatar) : null,
             'candidate_email'  => !$forJobSeeker ? ($i->jobSeeker?->email) : null,
         ];
     }
