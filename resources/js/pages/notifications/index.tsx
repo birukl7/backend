@@ -70,6 +70,12 @@ function NotificationIcon({ type }: { type: string }) {
                     <Calendar className="h-4 w-4 text-violet-500" />
                 </div>
             );
+        case 'new_application':
+            return (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                    <Bell className="h-4 w-4 text-amber-600" />
+                </div>
+            );
         default:
             return (
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100">
@@ -99,6 +105,11 @@ export default function NotificationsIndex({ notifications }: Props) {
                 {},
                 { preserveScroll: true },
             );
+        }
+
+        if (notification.type === 'new_application') {
+            router.visit('/employer/applications');
+            return;
         }
 
         // If it's a job notification, open the preview drawer instead of navigating away

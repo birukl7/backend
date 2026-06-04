@@ -8,6 +8,7 @@ use App\Models\ScreeningResponse;
 use App\Models\User;
 use App\Models\Vacancy;
 use App\Notifications\ApplicationStatusNotification;
+use App\Notifications\NewApplicationNotification;
 use App\Services\AiCvSummaryService;
 use App\Services\UserNotifier;
 use Illuminate\Http\Request;
@@ -78,6 +79,27 @@ class ApplicationController extends Controller
 
         if (isset($screeningResponse)) {
             $screeningResponse->update(['application_id' => $application->id]);
+        }
+
+        $application->load(['vacancy.employer', 'user']);
+        $employer = $application->vacancy?->employer;
+        if ($employer) {
+            $applicantName = $application->user?->name ?? 'A candidate';
+            $jobTitle = $application->vacancy?->title ?? 'your job';
+
+            UserNotifier::notify(
+                $employer,
+                new NewApplicationNotification($application),
+                [
+                    'type'  => 'new_application',
+                    'title' => 'New application received',
+                    'body'  => "{$applicantName} applied for \"{$jobTitle}\".",
+                    'data'  => [
+                        'application_id' => $application->id,
+                        'vacancy_id'     => $application->vacancy_id,
+                    ],
+                ],
+            );
         }
 
         return back()->with('success', 'Application submitted!');

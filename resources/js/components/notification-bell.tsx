@@ -264,6 +264,11 @@ export function NotificationBell() {
                                                     );
                                                     return;
                                                 }
+                                                if (n.type === 'new_application') {
+                                                    setOpen(false);
+                                                    router.visit('/employer/applications');
+                                                    return;
+                                                }
                                                 const vid = n.data?.vacancy_id;
                                                 if (vid) {
                                                     setOpen(false);
