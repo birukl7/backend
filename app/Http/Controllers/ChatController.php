@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AppNotification;
+use App\Models\ChatReport;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
@@ -10,6 +11,7 @@ use App\Support\PhpIniSize;
 use App\Support\PublicUploads;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -295,5 +297,84 @@ class ChatController extends Controller
             ->update(['read_at' => now()]);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Report the other party in a conversation for scam, insults, or other abuse.
+     */
+    public function report(Request $request, Conversation $conversation): \Illuminate\Http\JsonResponse
+    {
+        $user = Auth::user();
+
+        abort_unless(
+            $conversation->employer_id === $user->id || $conversation->job_seeker_id === $user->id,
+            403
+        );
+
+        $data = $request->validate([
+            'category' => ['required', Rule::in(['scam', 'insult', 'other'])],
+            'reason'   => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        $reportedUserId = $conversation->employer_id === $user->id
+            ? $conversation->job_seeker_id
+            : $conversation->employer_id;
+
+        $existingPending = ChatReport::query()
+            ->where('reporter_id', $user->id)
+            ->where('conversation_id', $conversation->id)
+            ->where('status', 'pending')
+            ->exists();
+
+        if ($existingPending) {
+            throw ValidationException::withMessages([
+                'reason' => 'You already have a pending report for this conversation.',
+            ]);
+        }
+
+        $report = ChatReport::create([
+            'reporter_id'      => $user->id,
+            'reported_user_id' => $reportedUserId,
+            'conversation_id'  => $conversation->id,
+            'category'         => $data['category'],
+            'reason'           => $data['reason'],
+            'status'           => 'pending',
+        ]);
+
+        $report->load(['reporter:id,name', 'reportedUser:id,name']);
+
+        $categoryLabel = match ($data['category']) {
+            'scam'   => 'Scam',
+            'insult' => 'Insult / harassment',
+            default  => 'Other',
+        };
+
+        $adminIds = User::role('admin')->pluck('id');
+
+        if ($adminIds->isNotEmpty()) {
+            $now = now();
+            $rows = $adminIds->map(fn ($adminId) => [
+                'user_id'    => $adminId,
+                'type'       => 'chat_report',
+                'title'      => 'New chat report: '.$categoryLabel,
+                'body'       => $report->reporter->name.' reported '.$report->reportedUser->name,
+                'data'       => json_encode([
+                    'chat_report_id'   => $report->id,
+                    'conversation_id'  => $conversation->id,
+                    'category'         => $data['category'],
+                    'reporter_id'      => $user->id,
+                    'reported_user_id' => $reportedUserId,
+                ]),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all();
+
+            AppNotification::insert($rows);
+        }
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Report submitted. Our team will review it shortly.',
+        ]);
     }
 }

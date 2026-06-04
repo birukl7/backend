@@ -1,4 +1,4 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { Bell, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { VacancyPreviewModal } from '@/components/vacancy-preview-modal';
@@ -256,6 +256,14 @@ export function NotificationBell() {
                                             onClick={() => {
                                                 if (isUnread)
                                                     void markRead(n.id);
+                                                const reportId = n.data?.chat_report_id;
+                                                if (reportId) {
+                                                    setOpen(false);
+                                                    router.visit(
+                                                        `/admin/chat-reports/${reportId}`,
+                                                    );
+                                                    return;
+                                                }
                                                 const vid = n.data?.vacancy_id;
                                                 if (vid) {
                                                     setOpen(false);

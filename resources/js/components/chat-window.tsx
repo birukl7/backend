@@ -1,8 +1,25 @@
 import { router } from '@inertiajs/react';
-import { FileText, Paperclip, Send, Wifi, X, ZoomIn } from 'lucide-react';
+import { FileText, Flag, Paperclip, Send, Wifi, X, ZoomIn } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatImageViewer } from '@/components/chat-image-viewer';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { useInitials } from '@/hooks/use-initials';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -293,6 +310,12 @@ export function ChatWindow({
     const [pendingPreview, setPendingPreview] = useState<string | null>(null);
     const [attachError, setAttachError] = useState<string | null>(null);
     const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+    const [reportOpen, setReportOpen] = useState(false);
+    const [reportCategory, setReportCategory] = useState<'scam' | 'insult' | 'other'>('scam');
+    const [reportReason, setReportReason] = useState('');
+    const [reportSubmitting, setReportSubmitting] = useState(false);
+    const [reportError, setReportError] = useState<string | null>(null);
+    const [reportSuccess, setReportSuccess] = useState<string | null>(null);
 
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -612,6 +635,66 @@ export function ChatWindow({
         }
     };
 
+    const resetReportForm = useCallback(() => {
+        setReportCategory('scam');
+        setReportReason('');
+        setReportError(null);
+        setReportSuccess(null);
+    }, []);
+
+    const submitReport = useCallback(async () => {
+        if (!activeConv || reportSubmitting) return;
+
+        const reason = reportReason.trim();
+        if (reason.length < 10) {
+            setReportError('Please describe what happened (at least 10 characters).');
+            return;
+        }
+
+        setReportSubmitting(true);
+        setReportError(null);
+
+        try {
+            const csrfToken =
+                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)
+                    ?.content ?? '';
+
+            const res = await fetch(`/chat/${activeConv.id}/report`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify({
+                    category: reportCategory,
+                    reason,
+                }),
+            });
+
+            const json = (await res.json()) as { message?: string; errors?: Record<string, string[]> };
+
+            if (res.ok) {
+                setReportSuccess(json.message ?? 'Report submitted.');
+                setReportReason('');
+                setTimeout(() => {
+                    setReportOpen(false);
+                    resetReportForm();
+                }, 1500);
+            } else {
+                const firstError =
+                    json.errors?.reason?.[0] ??
+                    json.errors?.category?.[0] ??
+                    'Could not submit report. Please try again.';
+                setReportError(firstError);
+            }
+        } catch {
+            setReportError('Could not submit report. Please try again.');
+        } finally {
+            setReportSubmitting(false);
+        }
+    }, [activeConv, reportCategory, reportReason, reportSubmitting, resetReportForm]);
+
     const groups = groupByDay(messages);
 
     return (
@@ -680,6 +763,19 @@ export function ChatWindow({
                                 )}
                             </div>
                             <div className="ml-auto flex items-center gap-1.5 text-xs">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        resetReportForm();
+                                        setReportOpen(true);
+                                    }}
+                                    className="flex items-center gap-1 rounded-md px-2 py-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                                    title="Report user"
+                                    aria-label="Report user"
+                                >
+                                    <Flag className="h-3.5 w-3.5" />
+                                    <span className="hidden sm:inline">Report</span>
+                                </button>
                                 <span className="flex items-center gap-1 text-emerald-500">
                                     <Wifi className="h-3.5 w-3.5" /> Live
                                 </span>
@@ -823,6 +919,83 @@ export function ChatWindow({
                 )}
             </div>
         </div>
+        <Dialog
+            open={reportOpen}
+            onOpenChange={(open) => {
+                setReportOpen(open);
+                if (!open) resetReportForm();
+            }}
+        >
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Report {activeConv?.other_user.name}</DialogTitle>
+                    <DialogDescription>
+                        Tell us if this user sent scam messages or insults. Our admin team will
+                        review your report.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="report-category">Reason type</Label>
+                        <Select
+                            value={reportCategory}
+                            onValueChange={(value) =>
+                                setReportCategory(value as 'scam' | 'insult' | 'other')
+                            }
+                        >
+                            <SelectTrigger id="report-category">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="scam">Scam / fraud</SelectItem>
+                                <SelectItem value="insult">Insult / harassment</SelectItem>
+                                <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="report-reason">Details</Label>
+                        <textarea
+                            id="report-reason"
+                            value={reportReason}
+                            onChange={(e) => setReportReason(e.target.value)}
+                            placeholder="Describe what happened…"
+                            rows={4}
+                            maxLength={2000}
+                            className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        />
+                    </div>
+
+                    {reportError && (
+                        <p className="text-sm text-red-500">{reportError}</p>
+                    )}
+                    {reportSuccess && (
+                        <p className="text-sm text-emerald-600">{reportSuccess}</p>
+                    )}
+                </div>
+
+                <DialogFooter>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setReportOpen(false)}
+                        disabled={reportSubmitting}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="button"
+                        onClick={submitReport}
+                        disabled={reportSubmitting || reportReason.trim().length < 10}
+                        className="bg-red-500 hover:bg-red-600"
+                    >
+                        {reportSubmitting ? 'Submitting…' : 'Submit report'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
         </>
     );
 }

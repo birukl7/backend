@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ChatReportController;
 use App\Http\Controllers\Admin\CompanyVerificationController;
 use App\Http\Controllers\Admin\ContentApprovalController;
 use App\Http\Controllers\Admin\DashboardController;
@@ -44,4 +45,8 @@ Route::middleware(['auth', 'verified', 'role:admin'])
         Route::patch('/content-approval/summaries/{cv}', [ContentApprovalController::class, 'updateSummary'])->name('content-approval.summary.update');
 
         Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+
+        Route::get('/chat-reports', [ChatReportController::class, 'index'])->name('chat-reports.index');
+        Route::get('/chat-reports/{chatReport}', [ChatReportController::class, 'show'])->name('chat-reports.show');
+        Route::patch('/chat-reports/{chatReport}', [ChatReportController::class, 'update'])->name('chat-reports.update');
     });

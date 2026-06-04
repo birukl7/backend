@@ -2,6 +2,7 @@ import {
     BarChart3,
     Briefcase,
     Building2,
+    Flag,
     LayoutGrid,
     ShieldAlert,
     Users,
@@ -38,6 +39,11 @@ export const adminNavItems: NavItem[] = [
         title: 'nav.suspiciousUsers',
         href: '/admin/suspicious-users',
         icon: ShieldAlert,
+    },
+    {
+        title: 'nav.chatReports',
+        href: '/admin/chat-reports',
+        icon: Flag,
     },
     {
         title: 'nav.reportsAnalytics',

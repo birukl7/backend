@@ -158,3 +158,17 @@ export function adminAnnouncementVisibilityPath(
 export function adminReportsIndexPath(): string {
     return '/admin/reports';
 }
+
+export function adminChatReportsIndexPath(
+    params?: Record<string, string | number | undefined>,
+): string {
+    return withQuery('/admin/chat-reports', params);
+}
+
+export function adminChatReportShowPath(reportId: number | string): string {
+    return `/admin/chat-reports/${reportId}`;
+}
+
+export function adminChatReportUpdatePath(reportId: number | string): string {
+    return `/admin/chat-reports/${reportId}`;
+}

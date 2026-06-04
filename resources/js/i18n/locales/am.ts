@@ -19,6 +19,7 @@ const am = {
         jobModeration: 'የሥራ ቁጥጥር',
         suspiciousUsers: 'አጠራጣሪ ተጠቃሚዎች',
         contentApproval: 'የይዘት ፈቃድ',
+        chatReports: 'የቻት ሪፖርቶች',
         reportsAnalytics: 'ሪፖርቶች እና ትንታኔ',
         navigationMenu: 'የማሰሻ ምናሌ',
     },

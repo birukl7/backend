@@ -184,6 +184,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/chat/{conversation}/messages', [ChatController::class, 'sendMessage'])->name('chat.send');
     Route::get('/chat/{conversation}/poll', [ChatController::class, 'poll'])->name('chat.poll');
     Route::patch('/chat/{conversation}/read', [ChatController::class, 'markRead'])->name('chat.read');
+    Route::post('/chat/{conversation}/report', [ChatController::class, 'report'])->name('chat.report');
 });
 
 require __DIR__.'/settings.php';

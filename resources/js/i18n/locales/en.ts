@@ -19,6 +19,7 @@ const en = {
         jobModeration: 'Job Moderation',
         suspiciousUsers: 'Suspicious Users',
         contentApproval: 'Content Approval',
+        chatReports: 'Chat Reports',
         reportsAnalytics: 'Reports & Analytics',
         navigationMenu: 'Navigation menu',
     },

@@ -64,6 +64,7 @@ test('non-admin users are forbidden from protected admin endpoints', function ()
         ['get', route('admin.suspicious-users.index')],
         ['get', route('admin.content-approval.index')],
         ['get', route('admin.reports.index')],
+        ['get', route('admin.chat-reports.index')],
     ];
 
     foreach ($requests as $request) {
@@ -120,5 +121,6 @@ test('admin can access all admin index pages', function () {
     $this->actingAs($admin)->get(route('admin.suspicious-users.index'))->assertOk();
     $this->actingAs($admin)->get(route('admin.content-approval.index'))->assertOk();
     $this->actingAs($admin)->get(route('admin.reports.index'))->assertOk();
+    $this->actingAs($admin)->get(route('admin.chat-reports.index'))->assertOk();
 });
 

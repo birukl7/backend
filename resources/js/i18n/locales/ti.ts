@@ -19,6 +19,7 @@ const ti = {
         jobModeration: 'ቁጽጽር ስራ',
         suspiciousUsers: 'ጥርጡር ተጠቀምቲ',
         contentApproval: 'ፍቓድ ትሕዝቶ',
+        chatReports: 'ሪፖርታት ዘተ',
         reportsAnalytics: 'ሪፖርታትን ትንተናን',
         navigationMenu: 'ምናሌ ምልላስ',
     },

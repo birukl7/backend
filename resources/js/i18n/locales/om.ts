@@ -19,6 +19,7 @@ const om = {
         jobModeration: 'To\'annoo Hojii',
         suspiciousUsers: 'Fayyadamtoota Shakkisiisoo',
         contentApproval: 'Hayyama Qabiyyee',
+        chatReports: 'Gabaasawwan Chat',
         reportsAnalytics: 'Gabaasawwan fi Xiinxala',
         navigationMenu: 'Tarree Kallattii',
     },
