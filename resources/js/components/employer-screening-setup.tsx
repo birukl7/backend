@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import AiBotAvatar from '@/components/ai-bot-avatar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -208,11 +209,7 @@ export default function EmployerScreeningSetup({ vacancyId }: Props) {
             {/* Enable banner */}
             <div className="flex items-center justify-between gap-4 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-violet-50 px-5 py-4">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white">
-                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                        </svg>
-                    </div>
+                    <AiBotAvatar size="md" />
                     <div>
                         <p className="text-[14px] font-bold text-slate-900">AI Smart Screening</p>
                         <p className="text-[12px] text-slate-500">
@@ -547,7 +544,7 @@ function TunerBubble({ role, text, typing = false }: { role: 'user' | 'assistant
     if (role === 'assistant') {
         return (
             <div className="flex items-start gap-2">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-[9px] font-bold text-white">AI</div>
+                <AiBotAvatar size="xs" />
                 <div className="max-w-[85%] rounded-xl rounded-tl-md border border-slate-200 bg-white px-3 py-2 text-[12px] leading-relaxed whitespace-pre-line text-slate-700">
                     {typing ? <span className="text-slate-300">Thinking…</span> : text}
                 </div>

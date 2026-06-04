@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import AiBotAvatar from '@/components/ai-bot-avatar';
 
 interface ChatMessage {
     role: 'ai' | 'user';
@@ -141,11 +142,7 @@ export default function ScreeningChat({
                     {/* Header */}
                     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
                         <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
-                                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                                </svg>
-                            </div>
+                            <AiBotAvatar size="md" />
                             <div className="min-w-0">
                                 <h2 className="text-[15px] leading-tight font-bold text-slate-900">
                                     AI Screening
@@ -275,9 +272,7 @@ function ChatBubble({
     if (role === 'ai') {
         return (
             <div className="flex items-start gap-2.5">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-[10px] font-bold text-white">
-                    AI
-                </div>
+                <AiBotAvatar />
                 <div className="max-w-[80%] rounded-2xl rounded-tl-md border border-slate-200 bg-white px-4 py-2.5 text-[13px] leading-relaxed whitespace-pre-line text-slate-700 shadow-sm">
                     {typing ? (
                         <span className="inline-flex gap-1">

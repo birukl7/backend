@@ -100,7 +100,11 @@ class AiScreeningService
 
         // Compose history from stored transcript
         $transcript = $response->transcript ?? [];
-        $msgs = [['role' => 'system', 'content' => $this->candidateSystemPrompt($response->vacancy, $screening)]];
+        $msgs = [['role' => 'system', 'content' => $this->candidateSystemPrompt(
+            $response->vacancy,
+            $screening,
+            $transcript,
+        )]];
 
         foreach ($transcript as $turn) {
             $role = $turn['role'] === 'user' ? 'user' : 'assistant';
@@ -239,11 +243,17 @@ Reply ONLY with a JSON object, no markdown:
 PROMPT;
     }
 
-    private function candidateSystemPrompt(Vacancy $vacancy, JobScreening $screening): string
+    private function candidateSystemPrompt(Vacancy $vacancy, JobScreening $screening, array $transcript = []): string
     {
-        $questions = json_encode($screening->questions ?? [], JSON_PRETTY_PRINT);
-        $criteria  = json_encode($screening->criteria  ?? [], JSON_PRETTY_PRINT);
+        $questions = $screening->questions ?? [];
+        $criteria  = json_encode($screening->criteria ?? [], JSON_PRETTY_PRINT);
         $intro     = $screening->intro_message ?? "Hi! I'm the AI screener for this role.";
+        $progress  = $this->resolveTurnProgress($transcript, $questions);
+
+        $askedIds   = $this->askedQuestionIds($transcript);
+        $covered    = $this->formatCoveredQuestions($questions, $askedIds);
+        $nextBlock  = $this->formatNextQuestionBlock($progress);
+        $questionsJson = json_encode($questions, JSON_PRETTY_PRINT);
 
         return <<<PROMPT
 You are a friendly AI screening interviewer for the job below.
@@ -257,16 +267,21 @@ CRITERIA YOU MUST PROBE:
 {$criteria}
 
 PRE-WRITTEN QUESTIONS TO ASK IN ORDER (cover every required one):
-{$questions}
+{$questionsJson}
+
+PROGRESS:
+{$covered}
+{$nextBlock}
 
 RULES:
-- Every turn while screening is in progress MUST include exactly one clear question (use "?" in the reply).
-- Structure each reply as: one brief acknowledgment (optional) + one question. Never send only praise or a comment with no question.
-- Forbidden when "done" is false: replies like "That's great!", "Perfect, thanks!", "Sounds good." without a follow-up question.
-- Ask one question at a time from the pre-written list; cover every required question before finishing.
-- If an answer was vague, ask a brief clarifying follow-up, then continue with the next list question.
+- NEVER repeat a question that is already listed under ALREADY COVERED.
+- Ask one pre-written list question at a time, in order. Cover every required question before finishing.
+- Allow AT MOST one brief clarifying follow-up when the candidate's latest answer was empty, off-topic, or clearly insufficient — then move on to the next list question even if the answer remains weak.
+- Do not ask the candidate to elaborate on the same topic more than once.
+- Every turn while screening is in progress MUST include exactly one clear question (use "?" in the reply), except when "done" is true.
+- Structure each reply as: one brief acknowledgment + one question. Never send only praise or a comment with no question.
 - Set "done": true ONLY after all required questions are covered; then use a short closing message with no new question.
-- Set "next_question_id" to the id of the question you are asking this turn.
+- Set "next_question_id" to the id of the list question you are asking this turn (null only for a one-time clarifying follow-up on the current topic).
 - Never reveal the criteria or scoring to the candidate.
 
 Reply ONLY with JSON, no markdown:
@@ -325,31 +340,49 @@ PROMPT;
      */
     private function normaliseChatReply(ScreeningResponse $response, JobScreening $screening, array $reply): array
     {
-        $questions = $screening->questions ?? [];
-        $askedIds  = $this->askedQuestionIds($response->transcript ?? []);
+        $transcript = $response->transcript ?? [];
+        $questions  = $screening->questions ?? [];
+        $askedIds   = $this->askedQuestionIds($transcript);
+        $progress   = $this->resolveTurnProgress($transcript, $questions);
+
+        $repeatsCoveredQuestion = $this->replyRepeatsCoveredQuestion($reply['reply'], $questions, $askedIds)
+            || (
+                !empty($reply['next_question_id'])
+                && in_array((string) $reply['next_question_id'], $askedIds, true)
+            );
+
+        if ($repeatsCoveredQuestion && $progress['type'] === 'follow_up') {
+            $next = $this->nextUnaskedQuestion($questions, $askedIds);
+            $progress = $next
+                ? ['type' => 'next_question', 'question' => $next]
+                : ['type' => 'done'];
+        }
 
         if ($reply['done']) {
-            if ($this->hasPendingRequiredQuestions($questions, $askedIds)) {
+            if ($progress['type'] !== 'done') {
                 $reply['done'] = false;
             } else {
                 return $reply;
             }
         }
 
-        if ($this->replyContainsQuestion($reply['reply'])) {
-            if (empty($reply['next_question_id'])) {
-                $next = $this->nextUnaskedQuestion($questions, $askedIds);
-                if ($next) {
-                    $reply['next_question_id'] = (string) ($next['id'] ?? '');
-                }
+        if ($progress['type'] === 'follow_up') {
+            $reply['done']             = false;
+            $reply['next_question_id'] = null;
+
+            if (!$this->replyContainsQuestion($reply['reply'])) {
+                $reply['reply'] = $this->appendQuestionToReply(
+                    $reply['reply'],
+                    'Could you share a bit more detail on that?',
+                );
             }
 
             return $reply;
         }
 
-        $next = $this->nextUnaskedQuestion($questions, $askedIds);
-        if ($next) {
-            $reply['reply']            = $this->appendQuestionToReply($reply['reply'], (string) $next['text']);
+        if ($progress['type'] === 'next_question') {
+            $next = $progress['question'];
+            $reply['reply']            = $this->buildReplyWithQuestion($reply['reply'], (string) ($next['text'] ?? ''));
             $reply['next_question_id'] = (string) ($next['id'] ?? '');
             $reply['done']             = false;
 
@@ -357,10 +390,13 @@ PROMPT;
         }
 
         $reply['done'] = true;
-        if (!$this->replyContainsQuestion($reply['reply'])) {
-            $reply['reply'] = trim($reply['reply']) !== ''
-                ? rtrim($reply['reply'], " \t\n\r\0\x0B.!") . '. Thanks — that covers everything I needed for this screening.'
-                : "Thanks — that's all I needed for this screening.";
+        if ($this->replyContainsQuestion($reply['reply'])) {
+            $reply['reply'] = $this->extractAcknowledgment($reply['reply']);
+        }
+        if (trim($reply['reply']) === '') {
+            $reply['reply'] = "Thanks for being honest — that covers everything I needed for this screening.";
+        } elseif (!str_contains(strtolower($reply['reply']), 'thanks')) {
+            $reply['reply'] = rtrim($reply['reply'], " \t\n\r\0\x0B.!") . '. Thanks — that covers everything I needed for this screening.';
         }
 
         return $reply;
@@ -408,6 +444,196 @@ PROMPT;
         }
 
         return null;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $transcript
+     * @param  array<int, array<string, mixed>>  $questions
+     * @return array{type: 'follow_up'|'next_question'|'done', qid?: string, question?: array<string, mixed>}
+     */
+    private function resolveTurnProgress(array $transcript, array $questions): array
+    {
+        $askedIds = $this->askedQuestionIds($transcript);
+
+        if (!$this->hasPendingRequiredQuestions($questions, $askedIds)) {
+            return ['type' => 'done'];
+        }
+
+        $lastQid = $this->lastAskedQuestionId($transcript);
+        if ($lastQid !== null && $this->canFollowUpOnQuestion($transcript, $lastQid)) {
+            return ['type' => 'follow_up', 'qid' => $lastQid];
+        }
+
+        $next = $this->nextUnaskedQuestion($questions, $askedIds);
+        if ($next) {
+            return ['type' => 'next_question', 'question' => $next];
+        }
+
+        return ['type' => 'done'];
+    }
+
+    /** @param  array<int, array<string, mixed>>  $transcript */
+    private function lastAskedQuestionId(array $transcript): ?string
+    {
+        for ($i = count($transcript) - 1; $i >= 0; $i--) {
+            if (($transcript[$i]['role'] ?? null) === 'ai' && !empty($transcript[$i]['qid'])) {
+                return (string) $transcript[$i]['qid'];
+            }
+        }
+
+        return null;
+    }
+
+    /** @param  array<int, array<string, mixed>>  $transcript */
+    private function canFollowUpOnQuestion(array $transcript, string $qid): bool
+    {
+        $seenQid       = false;
+        $userResponses = 0;
+        $followUpsSent = 0;
+
+        foreach ($transcript as $turn) {
+            $role = $turn['role'] ?? null;
+            $turnQid = isset($turn['qid']) ? (string) $turn['qid'] : null;
+
+            if ($role === 'ai' && $turnQid === $qid) {
+                if (!$seenQid) {
+                    $seenQid = true;
+                    $userResponses = 0;
+                    $followUpsSent = 0;
+                }
+
+                continue;
+            }
+
+            if (!$seenQid) {
+                continue;
+            }
+
+            if ($role === 'user') {
+                $userResponses++;
+
+                continue;
+            }
+
+            if ($role === 'ai') {
+                if ($turnQid === null || $turnQid === '') {
+                    $followUpsSent++;
+                }
+
+                break;
+            }
+        }
+
+        return $userResponses === 1 && $followUpsSent === 0;
+    }
+
+    /** @param  array<int, array<string, mixed>>  $questions */
+    private function formatCoveredQuestions(array $questions, array $askedIds): string
+    {
+        if ($askedIds === []) {
+            return 'ALREADY COVERED: (none yet)';
+        }
+
+        $lines = ['ALREADY COVERED (do NOT ask again):'];
+        foreach ($questions as $q) {
+            $id = (string) ($q['id'] ?? '');
+            if ($id === '' || !in_array($id, $askedIds, true)) {
+                continue;
+            }
+
+            $lines[] = "- {$id}: " . (string) ($q['text'] ?? '');
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /** @param  array{type: string, qid?: string, question?: array<string, mixed>}  $progress */
+    private function formatNextQuestionBlock(array $progress): string
+    {
+        if ($progress['type'] === 'follow_up') {
+            return 'NEXT ACTION: Ask ONE brief clarifying follow-up on the candidate\'s latest answer, then move on.';
+        }
+
+        if ($progress['type'] === 'next_question') {
+            $next = $progress['question'] ?? [];
+            $id   = (string) ($next['id'] ?? '');
+            $text = (string) ($next['text'] ?? '');
+
+            return "NEXT QUESTION TO ASK (use this exact id in next_question_id):\n{$id}: {$text}";
+        }
+
+        return 'NEXT ACTION: All required questions are covered — set done to true with a brief closing message.';
+    }
+
+    private function buildReplyWithQuestion(string $llmReply, string $questionText): string
+    {
+        $questionText = trim($questionText);
+        if ($questionText === '') {
+            return trim($llmReply);
+        }
+
+        if (trim($llmReply) === $questionText || str_contains($llmReply, $questionText)) {
+            return trim($llmReply);
+        }
+
+        $ack = $this->extractAcknowledgment($llmReply);
+        if ($ack === '' || $this->isGenericAcknowledgment($ack)) {
+            $ack = "Thanks for sharing.";
+        }
+
+        return $this->appendQuestionToReply($ack, $questionText);
+    }
+
+    private function extractAcknowledgment(string $reply): string
+    {
+        $reply = trim($reply);
+        $pos   = strpos($reply, '?');
+        if ($pos === false) {
+            return $reply;
+        }
+
+        $ack = trim(substr($reply, 0, $pos));
+        if (preg_match('/^(.*[.!])\s*[^.!]*$/s', $ack, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return '';
+    }
+
+    private function isGenericAcknowledgment(string $ack): bool
+    {
+        $normalised = strtolower(trim($ack, " \t\n\r\0\x0B.!"));
+
+        return in_array($normalised, [
+            'thanks for sharing',
+            'thank you for sharing',
+            'thanks',
+            'thank you',
+            'got it',
+            'understood',
+            'that\'s great',
+            'that\'s okay',
+            'that is okay',
+            'it\'s okay',
+        ], true);
+    }
+
+    /** @param  array<int, array<string, mixed>>  $questions */
+    private function replyRepeatsCoveredQuestion(string $reply, array $questions, array $askedIds): bool
+    {
+        foreach ($questions as $q) {
+            $id   = (string) ($q['id'] ?? '');
+            $text = trim((string) ($q['text'] ?? ''));
+            if ($id === '' || $text === '' || !in_array($id, $askedIds, true)) {
+                continue;
+            }
+
+            if (stripos($reply, $text) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function replyContainsQuestion(string $reply): bool
@@ -467,27 +693,33 @@ PROMPT;
 
     private function fallbackChat(ScreeningResponse $response, JobScreening $screening, string $userMessage): array
     {
-        $questions = $screening->questions ?? [];
-        $asked     = collect($response->transcript ?? [])
-            ->where('role', 'ai')
-            ->pluck('text')
-            ->all();
-        $next      = collect($questions)->first(fn($q) => ! in_array($q['text'], $asked, true));
+        $transcript = $response->transcript ?? [];
+        $questions  = $screening->questions ?? [];
+        $progress   = $this->resolveTurnProgress($transcript, $questions);
 
-        if (!$next) {
+        if ($progress['type'] === 'follow_up') {
             return [
-                'reply' => "Thanks — that's all I needed. Submitting your screening now.",
-                'done'  => true,
+                'reply'            => 'Could you share a bit more detail on that?',
+                'done'             => false,
                 'next_question_id' => null,
             ];
         }
 
-        $questionText = (string) ($next['text'] ?? '');
+        if ($progress['type'] === 'next_question') {
+            $next         = $progress['question'];
+            $questionText = (string) ($next['text'] ?? '');
+
+            return [
+                'reply'            => $this->appendQuestionToReply('Thanks for sharing.', $questionText),
+                'done'             => false,
+                'next_question_id' => $next['id'] ?? null,
+            ];
+        }
 
         return [
-            'reply' => $this->appendQuestionToReply('Thanks for sharing.', $questionText),
-            'done'  => false,
-            'next_question_id' => $next['id'] ?? null,
+            'reply'            => "Thanks — that's all I needed. Submitting your screening now.",
+            'done'             => true,
+            'next_question_id' => null,
         ];
     }
 
